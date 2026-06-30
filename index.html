@@ -1,0 +1,1264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Odysseus FX — a live gallery of canvas &amp; shader tricks</title>
+<meta name="description" content="A self-contained gallery of browser visual effects — flow fields, reaction-diffusion, metaballs, boids, fluid, raymarched shaders and more. All live, all Odysseus-themed.">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 4L16 22L6 22Z' fill='%23e06c75'/%3E%3Cpath d='M16 8L16 22L24 22Z' fill='%23e06c75' opacity='0.6'/%3E%3Cpath d='M4 24Q10 20 16 24Q22 28 28 24' stroke='%23e06c75' stroke-width='2.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e1116; --bg2: #14181e; --panel: #131820; --panel2: #1a212a;
+    --ink: #9cdef2; --fg: #c7e9f5; --dim: #6b8a94; --border: #243240;
+    --p1: #9cdef2; --p2: #e06c75; --p3: #5fb6cc; --warn: #f0ad4e; --ok: #50fa7b;
+    --radius: 12px; --maxw: 1240px;
+    --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    --disp: 'Space Grotesk', system-ui, sans-serif;
+    --sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 72px; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font-family: var(--sans); line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--ink); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  ::selection { background: var(--p2); color: #1a0c0c; }
+
+  /* ---- top bar ---- */
+  header.bar {
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; gap: 18px;
+    padding: 12px clamp(16px, 4vw, 40px);
+    background: color-mix(in srgb, var(--bg) 86%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  .brand { display: flex; align-items: center; gap: 9px; font-family: var(--disp); font-weight: 700; letter-spacing: .3px; }
+  .brand svg { color: var(--p2); }
+  .brand b { color: var(--ink); }
+  .brand span { color: var(--dim); font-weight: 400; }
+  .bar nav { display: flex; gap: 16px; margin-left: 6px; }
+  .bar nav a { color: var(--dim); font-size: 14px; font-family: var(--mono); }
+  .bar nav a:hover { color: var(--ink); text-decoration: none; }
+  .bar .spacer { flex: 1; }
+  .bar .ctrl { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--dim); font-family: var(--mono); }
+  .bar select, .bar button {
+    font-family: var(--mono); font-size: 13px;
+    background: var(--panel); color: var(--fg);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 7px 11px; cursor: pointer;
+  }
+  .bar button:hover, .bar select:hover { border-color: var(--p3); }
+  .bar button.on { color: var(--p2); border-color: var(--p2); }
+  @media (max-width: 760px) { .bar nav { display: none; } }
+
+  /* ---- hero ---- */
+  .hero { position: relative; min-height: 86vh; display: flex; flex-direction: column; justify-content: center; overflow: hidden; border-bottom: 1px solid var(--border); }
+  #hero-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .hero .veil { position: absolute; inset: 0; background: radial-gradient(120% 90% at 50% 30%, transparent 30%, color-mix(in srgb, var(--bg) 75%, transparent) 100%); pointer-events: none; }
+  .hero .inner { position: relative; z-index: 2; max-width: var(--maxw); margin: 0 auto; padding: 0 clamp(16px, 4vw, 40px); width: 100%; pointer-events: none; }
+  .hero .eyebrow { font-family: var(--mono); color: var(--p3); font-size: 13px; letter-spacing: 2.5px; text-transform: uppercase; margin: 0 0 14px; }
+  .hero h1 { font-family: var(--disp); font-weight: 700; font-size: clamp(36px, 7vw, 82px); line-height: 1.02; margin: 0; letter-spacing: -1.5px; color: #eaf6fb; }
+  .hero h1 em { font-style: normal; color: var(--p2); }
+  .hero p.lede { max-width: 620px; margin: 22px 0 0; font-size: clamp(15px, 2vw, 19px); color: var(--fg); }
+  .hero .cue { position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 2; color: var(--dim); font-family: var(--mono); font-size: 12px; letter-spacing: 1px; }
+  .hero .cue span { display: block; text-align: center; animation: bob 1.8s ease-in-out infinite; }
+  @keyframes bob { 50% { transform: translateY(6px); opacity: .55; } }
+
+  /* ---- sections ---- */
+  section.cat { max-width: var(--maxw); margin: 0 auto; padding: clamp(48px, 8vw, 96px) clamp(16px, 4vw, 40px) 0; }
+  .cat-head { display: flex; align-items: flex-end; gap: 18px; flex-wrap: wrap; margin-bottom: 8px; }
+  .cat-head .no { font-family: var(--mono); color: var(--p2); font-size: 14px; }
+  .cat-head h2 { font-family: var(--disp); font-weight: 700; font-size: clamp(26px, 4vw, 40px); margin: 4px 0 0; letter-spacing: -.5px; color: #eaf6fb; }
+  .cat-head p { margin: 0 0 0 auto; max-width: 460px; color: var(--dim); font-size: 14px; }
+  .cat hr { border: 0; border-top: 1px solid var(--border); margin: 18px 0 30px; }
+
+  /* ---- grid + cards ---- */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 22px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; transition: border-color .2s, transform .2s; }
+  .card:focus-within, .card:hover { border-color: var(--p3); }
+  .cv-wrap { position: relative; aspect-ratio: 16 / 10; background: var(--bg); cursor: crosshair; }
+  .cv-wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .cv-wrap .ovl { position: absolute; top: 10px; left: 12px; right: 12px; display: flex; align-items: center; gap: 8px; pointer-events: none; z-index: 3; }
+  .ovl .rank { font-family: var(--mono); font-size: 11px; color: #07111a; background: var(--p1); padding: 2px 7px; border-radius: 20px; font-weight: 500; }
+  .ovl .nm { font-family: var(--disp); font-weight: 500; font-size: 15px; color: #eaf6fb; text-shadow: 0 1px 8px rgba(0,0,0,.8); }
+  .ovl .lib { margin-left: auto; font-family: var(--mono); font-size: 10.5px; color: var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 50%, transparent); padding: 2px 6px; border-radius: 6px; pointer-events: auto; }
+  .cv-wrap .stalled { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column; gap: 6px; text-align: center; padding: 16px; color: var(--dim); font-family: var(--mono); font-size: 12px; z-index: 4; }
+  .card.is-stalled .stalled { display: flex; }
+  .meta { padding: 13px 15px 15px; border-top: 1px solid var(--border); }
+  .meta .trick { margin: 0; font-size: 13px; color: var(--dim); }
+  .meta .trick b { color: var(--p3); font-weight: 500; }
+  .ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 12px; }
+  .ctl:empty { display: none; }
+  .ctl label { font-family: var(--mono); font-size: 11.5px; color: var(--dim); display: inline-flex; align-items: center; gap: 7px; }
+  .ctl input[type=range] { width: 96px; accent-color: var(--p2); }
+  .ctl button, .ctl select { font-family: var(--mono); font-size: 11.5px; background: var(--panel2); color: var(--fg); border: 1px solid var(--border); border-radius: 7px; padding: 5px 9px; cursor: pointer; }
+  .ctl button:hover, .ctl select:hover { border-color: var(--p3); }
+  .ctl button.on { color: var(--p2); border-color: var(--p2); }
+  details.src { margin-top: 11px; }
+  details.src summary { cursor: pointer; font-family: var(--mono); font-size: 11.5px; color: var(--p3); list-style: none; }
+  details.src summary::-webkit-details-marker { display: none; }
+  details.src summary::before { content: "› "; }
+  details.src[open] summary::before { content: "⌄ "; }
+  details.src pre { margin: 9px 0 0; padding: 11px 12px; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; overflow: auto; }
+  details.src code { font-family: var(--mono); font-size: 11.5px; color: var(--fg); white-space: pre; }
+
+  footer { max-width: var(--maxw); margin: 80px auto 0; padding: 30px clamp(16px,4vw,40px) 50px; border-top: 1px solid var(--border); color: var(--dim); font-family: var(--mono); font-size: 12.5px; display: flex; flex-wrap: wrap; gap: 8px 20px; }
+  footer .spacer { flex: 1; }
+
+  .rm-banner { display: none; position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 60; background: var(--panel); border: 1px solid var(--p2); border-radius: 10px; padding: 10px 14px; font-family: var(--mono); font-size: 12.5px; color: var(--fg); box-shadow: 0 8px 30px rgba(0,0,0,.5); }
+  .rm-banner.show { display: block; }
+  .rm-banner button { margin-left: 10px; background: var(--p2); color: #1a0c0c; border: 0; border-radius: 6px; padding: 4px 10px; cursor: pointer; font-family: var(--mono); }
+
+  @media (prefers-reduced-motion: reduce) { .hero .cue span { animation: none; } }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="brand">
+    <svg viewBox="0 0 32 32" width="22" height="22" aria-hidden="true"><path d="M16 4L16 22L6 22Z" fill="currentColor"/><path d="M16 8L16 22L24 22Z" fill="currentColor" opacity="0.6"/><path d="M4 24Q10 20 16 24Q22 28 28 24" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"/></svg>
+    <b>Odysseus</b><span>/ fx</span>
+  </div>
+  <nav>
+    <a href="#vanilla">Vanilla</a>
+    <a href="#gpu">GPU &amp; libs</a>
+    <a href="#about">About</a>
+  </nav>
+  <div class="spacer"></div>
+  <div class="ctrl">
+    <label for="theme">theme</label>
+    <select id="theme" aria-label="Color theme">
+      <option value="odysseus">Odysseus</option>
+      <option value="void">Void</option>
+      <option value="abyss">Abyss</option>
+      <option value="ember">Ember</option>
+      <option value="paper">Paper (light)</option>
+    </select>
+  </div>
+  <button id="pauseAll" title="Pause or resume every demo">⏸ pause all</button>
+</header>
+
+<div class="hero" id="top">
+  <canvas id="hero-canvas" aria-hidden="true"></canvas>
+  <div class="veil"></div>
+  <div class="inner">
+    <p class="eyebrow">Self-hosted · canvas-deep · 25 live demos</p>
+    <h1>The <em>40-line</em><br>magic show.</h1>
+    <p class="lede">Every panel below is a live, running effect — particles, fluids, fractals, automata, shaders. No video, no images. Hover, drag, and poke them. Most are shorter than the email you're avoiding.</p>
+  </div>
+  <div class="cue"><span>scroll ↓</span></div>
+</div>
+
+<section class="cat" id="vanilla">
+  <div class="cat-head">
+    <div>
+      <div class="no">A — no dependencies</div>
+      <h2>Pure canvas, plain JavaScript</h2>
+    </div>
+    <p>Nothing loaded but the page itself. Just a <code>&lt;canvas&gt;</code>, a loop, and a couple of math tricks. Ranked by how good the trick-to-code ratio is.</p>
+  </div>
+  <hr>
+  <div class="grid" id="grid-vanilla"></div>
+</section>
+
+<section class="cat" id="gpu">
+  <div class="cat-head">
+    <div>
+      <div class="no">B — GPU &amp; libraries</div>
+      <h2>Shaders and the heavy artillery</h2>
+    </div>
+    <p>These lean on the GPU (raw WebGL) or a CDN library. Tiles marked <span style="color:var(--warn);font-family:var(--mono);font-size:12px;">lib</span> fetch code; if offline they degrade to a note instead of breaking.</p>
+  </div>
+  <hr>
+  <div class="grid" id="grid-gpu"></div>
+</section>
+
+<footer id="about">
+  <div>© 2026 Odysseus FX · built from one prompt that refused to stop</div>
+  <div class="spacer"></div>
+  <div id="fps">—</div>
+  <div>no cyclopes were harmed*</div>
+</footer>
+
+<div class="rm-banner" id="rmBanner">Motion is paused (you prefer reduced motion). <button id="rmPlay">Play anyway</button></div>
+
+<script>
+/* ============================================================
+   FX FRAMEWORK — registry, themes, shared helpers, lifecycle
+   ============================================================ */
+window.FX = (function () {
+  const reg = [];
+  const instances = [];
+  let curTheme = 'odysseus';
+  let paused = false;
+  let started = false;
+
+  /* ---- themes: single source of truth for CSS vars + canvas palette ---- */
+  const THEMES = {
+    odysseus: { bg:'#0e1116', bg2:'#14181e', panel:'#131820', panel2:'#1a212a', ink:'#9cdef2', fg:'#c7e9f5', dim:'#6b8a94', border:'#243240',
+                p1:'#9cdef2', p2:'#e06c75', p3:'#5fb6cc', warn:'#f0ad4e', ok:'#50fa7b', light:false },
+    void:     { bg:'#000000', bg2:'#070707', panel:'#0a0a0c', panel2:'#101014', ink:'#37ffe6', fg:'#d8fff8', dim:'#5a6a6a', border:'#1a1f22',
+                p1:'#37ffe6', p2:'#ff2d95', p3:'#8a7bff', warn:'#ffd166', ok:'#39ff14', light:false },
+    abyss:    { bg:'#0a1024', bg2:'#0e1530', panel:'#10183a', panel2:'#172146', ink:'#7fd1ff', fg:'#cfe6ff', dim:'#5d7099', border:'#1e2a52',
+                p1:'#7fd1ff', p2:'#ffb454', p3:'#5fd3c4', warn:'#ffb454', ok:'#9af0c0', light:false },
+    ember:    { bg:'#140d0a', bg2:'#1b110c', panel:'#1c120d', panel2:'#241710', ink:'#ffb88a', fg:'#ffe0c9', dim:'#9c7a66', border:'#3a261b',
+                p1:'#ff9e57', p2:'#ff4d4d', p3:'#ffd166', warn:'#ffd166', ok:'#c4f06b', light:false },
+    paper:    { bg:'#f3efe6', bg2:'#e9e3d6', panel:'#fbf8f1', panel2:'#efe9dc', ink:'#1d5e78', fg:'#23303a', dim:'#7c8a92', border:'#d6cdbb',
+                p1:'#1f7a93', p2:'#d85a30', p3:'#2a9d8f', warn:'#c98a2b', ok:'#3a8a3a', light:true }
+  };
+
+  function applyTheme(name) {
+    if (!THEMES[name]) name = 'odysseus';
+    curTheme = name;
+    const t = THEMES[name], r = document.documentElement.style;
+    r.setProperty('--bg', t.bg); r.setProperty('--bg2', t.bg2);
+    r.setProperty('--panel', t.panel); r.setProperty('--panel2', t.panel2);
+    r.setProperty('--ink', t.ink); r.setProperty('--fg', t.fg);
+    r.setProperty('--dim', t.dim); r.setProperty('--border', t.border);
+    r.setProperty('--p1', t.p1); r.setProperty('--p2', t.p2); r.setProperty('--p3', t.p3);
+    r.setProperty('--warn', t.warn); r.setProperty('--ok', t.ok);
+  }
+  function pal() { return THEMES[curTheme]; }
+
+  /* ---- shared math helpers ---- */
+  const TAU = Math.PI * 2;
+  function rand(a, b) { return a + Math.random() * (b - a); }
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function hexToRgb(h) { h = h.replace('#',''); if (h.length===3) h=h.split('').map(c=>c+c).join(''); const n=parseInt(h,16); return [(n>>16)&255,(n>>8)&255,n&255]; }
+  function mix(h1, h2, t) { const a=hexToRgb(h1), b=hexToRgb(h2); return 'rgb('+Math.round(lerp(a[0],b[0],t))+','+Math.round(lerp(a[1],b[1],t))+','+Math.round(lerp(a[2],b[2],t))+')'; }
+  function rgba(h, a) { const c=hexToRgb(h); return 'rgba('+c[0]+','+c[1]+','+c[2]+','+a+')'; }
+
+  /* value-noise (smooth, cheap) — the engine behind flow fields & friends */
+  function n2(x, y) { const n = Math.sin(x*12.9898 + y*78.233) * 43758.5453; return n - Math.floor(n); }
+  function noise(x, y) {
+    const ix=Math.floor(x), iy=Math.floor(y), fx=x-ix, fy=y-iy;
+    const a=n2(ix,iy), b=n2(ix+1,iy), c=n2(ix,iy+1), d=n2(ix+1,iy+1);
+    const ux=fx*fx*(3-2*fx), uy=fy*fy*(3-2*fy);
+    return a+(b-a)*ux+(c-a)*uy+(a-b-c+d)*ux*uy;
+  }
+  function fbm(x, y) { let v=0, amp=.5, f=1; for(let i=0;i<4;i++){ v+=amp*noise(x*f,y*f); f*=2; amp*=.5; } return v; }
+
+  const util = { TAU, rand, clamp, lerp, mix, rgba, hexToRgb, noise, fbm, pal };
+  window.FXUTIL = util;
+
+  /* ---- registration ---- */
+  function register(def) { reg.push(def); }
+
+  /* ---- build a card's DOM ---- */
+  function buildCard(def) {
+    const card = document.createElement('article');
+    card.className = 'card'; card.tabIndex = 0; card.id = 'fx-' + def.id;
+    const wrap = document.createElement('div'); wrap.className = 'cv-wrap';
+    const cv = document.createElement('canvas');
+    const ovl = document.createElement('div'); ovl.className = 'ovl';
+    ovl.innerHTML = '<span class="rank">#'+def.rank+'</span><span class="nm">'+def.name+'</span>'
+      + (def.lib ? '<span class="lib" title="loads '+def.lib+' from a CDN">lib · '+def.lib+'</span>' : '');
+    const stalled = document.createElement('div'); stalled.className = 'stalled';
+    stalled.textContent = 'demo unavailable here';
+    wrap.appendChild(cv); wrap.appendChild(ovl); wrap.appendChild(stalled);
+    const meta = document.createElement('div'); meta.className = 'meta';
+    const trick = document.createElement('p'); trick.className = 'trick';
+    trick.innerHTML = '<b>The trick.</b> ' + def.trick;
+    const ctl = document.createElement('div'); ctl.className = 'ctl';
+    meta.appendChild(trick); meta.appendChild(ctl);
+    if (def.src) {
+      const d = document.createElement('details'); d.className = 'src';
+      d.innerHTML = '<summary>the key idea, in code</summary><pre><code></code></pre>';
+      d.querySelector('code').textContent = def.src;
+      meta.appendChild(d);
+    }
+    card.appendChild(wrap); card.appendChild(meta);
+    return { card, cv, wrap, ctl, stalled };
+  }
+
+  /* ---- per-instance lifecycle ---- */
+  function makeInstance(def) {
+    const dom = buildCard(def);
+    const inst = { def, dom, env: null, api: null, active: false, ro: null, mounted: false };
+
+    const mouse = { x:0, y:0, px:0, py:0, nx:.5, ny:.5, down:false, inside:false };
+    const wrap = dom.wrap;
+    function pos(e) {
+      const r = wrap.getBoundingClientRect();
+      const cx = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+      const cy = (e.touches ? e.touches[0].clientY : e.clientY) - r.top;
+      mouse.px = mouse.x; mouse.py = mouse.y; mouse.x = cx; mouse.y = cy;
+      mouse.nx = cx / r.width; mouse.ny = cy / r.height; mouse.inside = true;
+    }
+    wrap.addEventListener('mousemove', pos);
+    wrap.addEventListener('mousedown', e => { pos(e); mouse.down = true; });
+    window.addEventListener('mouseup', () => { mouse.down = false; });
+    wrap.addEventListener('mouseleave', () => { mouse.inside = false; });
+    wrap.addEventListener('touchstart', e => { pos(e); mouse.down = true; }, { passive:true });
+    wrap.addEventListener('touchmove', e => { pos(e); }, { passive:true });
+    wrap.addEventListener('touchend', () => { mouse.down = false; mouse.inside = false; });
+
+    function buildEnv() {
+      const r = wrap.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.75);
+      const w = Math.max(2, Math.round(r.width)), h = Math.max(2, Math.round(r.height));
+      dom.cv.width = Math.round(w * dpr); dom.cv.height = Math.round(h * dpr);
+      let ctx = null, gl = null;
+      if (def.mode === 'gl') {
+        gl = dom.cv.getContext('webgl', { antialias:true, alpha:false, premultipliedAlpha:false })
+          || dom.cv.getContext('experimental-webgl');
+      } else if (def.mode === 'raw') {
+        /* library manages its own context on the canvas */
+      } else {
+        ctx = dom.cv.getContext('2d');
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+      return { canvas: dom.cv, ctx, gl, w, h, dpr, mouse, ctl: dom.ctl, card: dom.card, stalled: dom.stalled,
+               fail(msg){ dom.card.classList.add('is-stalled'); dom.stalled.textContent = msg || 'demo unavailable here'; },
+               pal, util };
+    }
+
+    function setup() {
+      try {
+        if (def.mode === 'gl') { /* ensure context exists before setup */ }
+        inst.env = buildEnv();
+        if (def.mode === 'gl' && !inst.env.gl) throw new Error('no webgl');
+        inst.api = def.setup(inst.env) || {};
+        inst.mounted = true;
+        dom.card.classList.remove('is-stalled');
+      } catch (err) {
+        inst.mounted = false; inst.api = null;
+        dom.card.classList.add('is-stalled');
+        dom.stalled.textContent = (def.mode === 'gl' ? 'WebGL unavailable here' : 'demo unavailable here');
+        console.warn('[FX] setup failed for', def.id, err);
+      }
+    }
+    function teardown() {
+      if (inst.api && inst.api.teardown) { try { inst.api.teardown(); } catch(e){} }
+      inst.dom.ctl.innerHTML = '';
+      inst.api = null; inst.mounted = false;
+    }
+    function reset() { teardown(); setup(); }
+
+    inst.setup = setup; inst.teardown = teardown; inst.reset = reset;
+    inst.draw = function (t) {
+      if (!inst.api || !inst.api.draw) return;
+      try { inst.api.draw(t); } catch (e) { /* keep gallery alive */ }
+    };
+
+    /* size changes -> rebuild (debounced) */
+    let rt = null;
+    inst.ro = new ResizeObserver(() => {
+      clearTimeout(rt);
+      rt = setTimeout(() => { if (inst.mounted) reset(); }, 180);
+    });
+    inst.ro.observe(wrap);
+
+    return inst;
+  }
+
+  /* ---- main loop + visibility gating ---- */
+  let lastFps = performance.now(), frames = 0, fpsEl = null;
+  function loop(t) {
+    requestAnimationFrame(loop);
+    if (!paused) {
+      for (const inst of instances) { if (inst.active && inst.mounted) inst.draw(t); }
+    }
+    frames++;
+    if (t - lastFps > 1000) {
+      if (fpsEl) fpsEl.textContent = Math.round(frames * 1000 / (t - lastFps)) + ' fps';
+      frames = 0; lastFps = t;
+    }
+  }
+
+  function setPaused(p) {
+    paused = p;
+    const b = document.getElementById('pauseAll');
+    if (b) { b.classList.toggle('on', p); b.textContent = p ? '▶ play all' : '⏸ pause all'; }
+  }
+
+  function boot() {
+    if (started) return; started = true;
+    fpsEl = document.getElementById('fps');
+    reg.sort((a,b) => a.rank - b.rank);
+    const gv = document.getElementById('grid-vanilla');
+    const gg = document.getElementById('grid-gpu');
+    for (const def of reg) {
+      const inst = makeInstance(def);
+      instances.push(inst);
+      (def.cat === 'gpu' ? gg : gv).appendChild(inst.dom.card);
+    }
+    /* only run what's on screen */
+    const io = new IntersectionObserver(entries => {
+      for (const e of entries) {
+        const inst = instances.find(i => i.dom.wrap === e.target);
+        if (!inst) continue;
+        if (e.isIntersecting) { inst.active = true; if (!inst.mounted) inst.setup(); }
+        else { inst.active = false; }
+      }
+    }, { rootMargin: '120px 0px', threshold: 0.01 });
+    for (const inst of instances) io.observe(inst.dom.wrap);
+
+    /* theme switching re-inits visible demos so colours follow */
+    const sel = document.getElementById('theme');
+    if (sel) sel.addEventListener('change', () => {
+      applyTheme(sel.value);
+      for (const inst of instances) { if (inst.mounted) inst.reset(); }
+    });
+    const pb = document.getElementById('pauseAll');
+    if (pb) pb.addEventListener('click', () => setPaused(!paused));
+
+    /* respect reduced motion: start paused, offer opt-in */
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) {
+      setPaused(true);
+      const banner = document.getElementById('rmBanner');
+      if (banner) { banner.classList.add('show'); document.getElementById('rmPlay').addEventListener('click', () => { setPaused(false); banner.classList.remove('show'); }); }
+    }
+    requestAnimationFrame(loop);
+  }
+
+  applyTheme('odysseus');
+  return { register, boot, pal, applyTheme, util };
+})();
+</script>
+
+<script>
+/* ============================================================
+   EFFECTS — each registers itself with FX.register({...})
+   env = { canvas, ctx|gl, w, h, dpr, mouse, ctl, card, pal(), util }
+   setup(env) -> { draw(t), teardown?() }
+   ============================================================ */
+const U = window.FXUTIL;
+function ctlRange(env, label, min, max, val, step, on) {
+  const l = document.createElement('label'); l.textContent = label + ' ';
+  const i = document.createElement('input'); i.type = 'range'; i.min = min; i.max = max; i.step = step; i.value = val;
+  i.addEventListener('input', () => on(parseFloat(i.value)));
+  l.appendChild(i); env.ctl.appendChild(l); return i;
+}
+function ctlButton(env, label, on) {
+  const b = document.createElement('button'); b.textContent = label;
+  b.addEventListener('click', () => on(b)); env.ctl.appendChild(b); return b;
+}
+function ctlSelect(env, label, opts, on) {
+  const l = document.createElement('label'); l.textContent = label + ' ';
+  const s = document.createElement('select');
+  opts.forEach(o => { const op = document.createElement('option'); op.value = o; op.textContent = o; s.appendChild(op); });
+  s.addEventListener('change', () => on(s.value)); l.appendChild(s); env.ctl.appendChild(l); return s;
+}
+
+/* ---------- #1 Flow field (value-noise particles) ---------- */
+FX.register({
+  id:'flow', name:'Flow field', cat:'vanilla', rank:1, mode:'2d',
+  trick:'Particles read an invisible angle from a noise function and drift along it. Trails come from painting a faint rectangle instead of clearing.',
+  src:"a = noise(x*s, y*s, t) * TAU;\nvel += vec(cos a, sin a);\n// trail: fillRect with rgba(bg, 0.05) each frame",
+  setup(env){
+    const {ctx,w,h}=env; let N=Math.round(w*h/900), ps=[], t=0, R=70, stir=true;
+    function seed(){ ps=[]; for(let i=0;i<N;i++) ps.push({x:Math.random()*w,y:Math.random()*h,life:Math.random()}); }
+    seed();
+    ctlRange(env,'count',300,2400,N,50,v=>{N=Math.round(v);seed();});
+    ctlButton(env,'stir: on',b=>{stir=!stir;b.textContent='stir: '+(stir?'on':'off');b.classList.toggle('on',!stir);});
+    const cols=[env.pal().p1,env.pal().p2,env.pal().p3];
+    return {draw(){
+      ctx.fillStyle=U.rgba(env.pal().bg,0.07); ctx.fillRect(0,0,w,h);
+      const m=env.mouse;
+      for(let i=0;i<ps.length;i++){ const p=ps[i];
+        const a=U.noise(p.x*0.004+t*0.0009, p.y*0.004+50)*Math.PI*6;
+        const sp=1+U.noise(p.x*0.003,p.y*0.003+9)*1.6;
+        p.x+=Math.cos(a)*sp; p.y+=Math.sin(a)*sp;
+        if(stir&&m.inside){ const dx=p.x-m.x,dy=p.y-m.y,d=Math.hypot(dx,dy); if(d<R&&d>.01){const f=(1-d/R)*3.2; p.x+=-dy/d*f; p.y+=dx/d*f;} }
+        p.life-=0.0018;
+        if(p.life<=0||p.x<0||p.x>w||p.y<0||p.y>h){p.x=Math.random()*w;p.y=Math.random()*h;p.life=1;}
+        ctx.beginPath(); ctx.arc(p.x,p.y,1.2,0,U.TAU);
+        ctx.fillStyle=cols[i%3]; ctx.globalAlpha=p.life*0.55; ctx.fill();
+      }
+      ctx.globalAlpha=1; t++;
+    }};
+  }
+});
+
+/* ---------- #2 Reaction–diffusion (Gray–Scott) ---------- */
+FX.register({
+  id:'rd', name:'Reaction–diffusion', cat:'vanilla', rank:2, mode:'2d',
+  trick:'Two chemicals spread, react and feed/kill each other via a 5-point Laplacian. Tiny PDE, lifelike coral and mitosis.',
+  src:"A += DA*lap(A) - A*B*B + f*(1-A);\nB += DB*lap(B) + A*B*B - (k+f)*B;\n// f=feed, k=kill pick the pattern",
+  setup(env){
+    const {ctx,w,h}=env; const SC=3; const gw=Math.max(40,Math.floor(w/SC)), gh=Math.max(30,Math.floor(h/SC));
+    let A=new Float32Array(gw*gh), B=new Float32Array(gw*gh), A2=new Float32Array(gw*gh), B2=new Float32Array(gw*gh);
+    let feed=0.0367, kill=0.0649;
+    const off=document.createElement('canvas'); off.width=gw; off.height=gh; const octx=off.getContext('2d');
+    const img=octx.createImageData(gw,gh);
+    function seed(){ A.fill(1); B.fill(0); for(let i=0;i<26;i++){ const cx=(Math.random()*gw)|0, cy=(Math.random()*gh)|0; for(let y=-4;y<=4;y++)for(let x=-4;x<=4;x++){ const xx=cx+x,yy=cy+y; if(xx>=0&&xx<gw&&yy>=0&&yy<gh) B[yy*gw+xx]=1; } } }
+    seed();
+    ctx.imageSmoothingEnabled=true;
+    ctlSelect(env,'pattern',['mitosis','coral','worms','spots','holes'],v=>{
+      const P={mitosis:[.0367,.0649],coral:[.0545,.062],worms:[.078,.061],spots:[.035,.065],holes:[.039,.058]}[v]; feed=P[0]; kill=P[1]; seed();
+    });
+    ctlButton(env,'reseed',()=>seed());
+    function lap(s,i,x,y){ let v=-s[i];
+      v+=0.2*(s[i-1]+s[i+1]+(y>0?s[i-gw]:s[i])+(y<gh-1?s[i+gw]:s[i]));
+      v+=0.05*((x>0&&y>0?s[i-gw-1]:s[i])+(x<gw-1&&y>0?s[i-gw+1]:s[i])+(x>0&&y<gh-1?s[i+gw-1]:s[i])+(x<gw-1&&y<gh-1?s[i+gw+1]:s[i]));
+      return v; }
+    const c0=U.hexToRgb(env.pal().bg), c1=U.hexToRgb(env.pal().p3), c2=U.hexToRgb(env.pal().p1);
+    function step(){ const DA=1,DB=.5;
+      for(let y=0;y<gh;y++)for(let x=0;x<gw;x++){ const i=y*gw+x; const a=A[i],b=B[i],r=a*b*b;
+        A2[i]=a+(DA*lap(A,i,x,y)-r+feed*(1-a)); B2[i]=b+(DB*lap(B,i,x,y)+r-(kill+feed)*b); }
+      let t=A;A=A2;A2=t; t=B;B=B2;B2=t;
+    }
+    return {draw(){
+      const m=env.mouse; if(m.inside&&m.down){ const cx=(m.nx*gw)|0, cy=(m.ny*gh)|0; for(let y=-3;y<=3;y++)for(let x=-3;x<=3;x++){const xx=cx+x,yy=cy+y; if(xx>=0&&xx<gw&&yy>=0&&yy<gh)B[yy*gw+xx]=1;} }
+      step(); step();
+      const d=img.data; for(let i=0;i<gw*gh;i++){ let v=A[i]-B[i]; v=v<0?0:v>1?1:v; const tt=1-v; const j=i*4;
+        d[j]=c0[0]+(c1[0]-c0[0])*tt+(c2[0]-c1[0])*tt*tt; d[j+1]=c0[1]+(c1[1]-c0[1])*tt+(c2[1]-c1[1])*tt*tt; d[j+2]=c0[2]+(c1[2]-c0[2])*tt+(c2[2]-c1[2])*tt*tt; d[j+3]=255; }
+      octx.putImageData(img,0,0); ctx.drawImage(off,0,0,w,h);
+    }};
+  }
+});
+
+/* ---------- #3 Metaballs ---------- */
+FX.register({
+  id:'meta', name:'Metaballs', cat:'vanilla', rank:3, mode:'2d',
+  trick:'Sum r²/distance² from every blob into one field. Where the field crosses a threshold, two blobs read as fused liquid metal.',
+  src:"field(px) = Σ r_i² / dist(px, ball_i)²\n// threshold ~1.0 = surface; ramp around it for glow",
+  setup(env){
+    const {ctx,w,h}=env; const SC=4; const gw=Math.floor(w/SC), gh=Math.floor(h/SC);
+    const off=document.createElement('canvas'); off.width=gw; off.height=gh; const octx=off.getContext('2d');
+    const img=octx.createImageData(gw,gh);
+    let balls=[]; const N=7;
+    for(let i=0;i<N;i++) balls.push({x:Math.random()*gw,y:Math.random()*gh,vx:U.rand(-.5,.5),vy:U.rand(-.5,.5),r:U.rand(7,15)});
+    const c0=U.hexToRgb(env.pal().bg), c1=U.hexToRgb(env.pal().p3), c2=U.hexToRgb(env.pal().p1), c3=U.hexToRgb(env.pal().p2);
+    ctx.imageSmoothingEnabled=true;
+    return {draw(){
+      for(const b of balls){ b.x+=b.vx; b.y+=b.vy; if(b.x<0||b.x>gw)b.vx*=-1; if(b.y<0||b.y>gh)b.vy*=-1; }
+      const m=env.mouse; const mx=m.inside?m.nx*gw:-999, my=m.inside?m.ny*gh:-999;
+      const d=img.data;
+      for(let y=0;y<gh;y++)for(let x=0;x<gw;x++){ let s=0;
+        for(const b of balls){ const dx=x-b.x,dy=y-b.y; s+=(b.r*b.r)/(dx*dx+dy*dy+1); }
+        if(m.inside){ const dx=x-mx,dy=y-my; s+=180/(dx*dx+dy*dy+1); }
+        const i=(y*gw+x)*4; let cr,cg,cb;
+        if(s<0.6){ const t=s/0.6; cr=c0[0]+(c1[0]-c0[0])*t*.3; cg=c0[1]+(c1[1]-c0[1])*t*.3; cb=c0[2]+(c1[2]-c0[2])*t*.3; }
+        else if(s<1.0){ const t=(s-0.6)/0.4; cr=c1[0]+(c2[0]-c1[0])*t; cg=c1[1]+(c2[1]-c1[1])*t; cb=c1[2]+(c2[2]-c1[2])*t; }
+        else { const t=Math.min(1,(s-1.0)/0.8); cr=c2[0]+(c3[0]-c2[0])*t; cg=c2[1]+(c3[1]-c2[1])*t; cb=c2[2]+(c3[2]-c2[2])*t; }
+        d[i]=cr; d[i+1]=cg; d[i+2]=cb; d[i+3]=255;
+      }
+      octx.putImageData(img,0,0); ctx.drawImage(off,0,0,w,h);
+    }};
+  }
+});
+
+/* ---------- #4 Boids (flocking) ---------- */
+FX.register({
+  id:'boids', name:'Boids', cat:'vanilla', rank:4, mode:'2d',
+  trick:'Three local rules per agent — separate, align, cohere — and a flock emerges. No leader, no global plan.',
+  src:"v += sep*w1 + align*w2 + cohesion*w3\n// neighbours within a perception radius only",
+  setup(env){
+    const {ctx,w,h}=env; let N=Math.round(U.clamp(w*h/3800,60,180)); let b=[];
+    function seed(){ b=[]; for(let i=0;i<N;i++) b.push({x:Math.random()*w,y:Math.random()*h,vx:U.rand(-1,1),vy:U.rand(-1,1)}); }
+    seed();
+    ctlRange(env,'flock',40,260,N,10,v=>{N=Math.round(v);seed();});
+    const PR=42, sep2=20*20, maxs=2.6;
+    const col=env.pal().p1, col2=env.pal().p3;
+    return {draw(){
+      ctx.fillStyle=U.rgba(env.pal().bg,0.16); ctx.fillRect(0,0,w,h);
+      const m=env.mouse;
+      for(let i=0;i<b.length;i++){ const p=b[i]; let ax=0,ay=0,axA=0,ayA=0,cx=0,cy=0,n=0;
+        for(let j=0;j<b.length;j++){ if(i===j)continue; const q=b[j]; const dx=p.x-q.x,dy=p.y-q.y,d2=dx*dx+dy*dy;
+          if(d2<PR*PR){ n++; axA+=q.vx; ayA+=q.vy; cx+=q.x; cy+=q.y; if(d2<sep2&&d2>0){ ax+=dx/d2; ay+=dy/d2; } } }
+        if(n>0){ axA/=n; ayA/=n; cx=cx/n-p.x; cy=cy/n-p.y;
+          p.vx+=ax*1.4+(axA-p.vx)*0.05+cx*0.0009; p.vy+=ay*1.4+(ayA-p.vy)*0.05+cy*0.0009; }
+        if(m.inside){ const dx=p.x-m.x,dy=p.y-m.y,d=Math.hypot(dx,dy); if(d<90&&d>.1){p.vx+=dx/d*0.5;p.vy+=dy/d*0.5;} }
+        const sp=Math.hypot(p.vx,p.vy); if(sp>maxs){p.vx=p.vx/sp*maxs;p.vy=p.vy/sp*maxs;}
+        p.x+=p.vx; p.y+=p.vy;
+        if(p.x<0)p.x+=w; if(p.x>w)p.x-=w; if(p.y<0)p.y+=h; if(p.y>h)p.y-=h;
+        const a=Math.atan2(p.vy,p.vx);
+        ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(a);
+        ctx.beginPath(); ctx.moveTo(6,0); ctx.lineTo(-4,3); ctx.lineTo(-4,-3); ctx.closePath();
+        ctx.fillStyle=(i%5===0)?col2:col; ctx.globalAlpha=.9; ctx.fill(); ctx.restore();
+      }
+      ctx.globalAlpha=1;
+    }};
+  }
+});
+
+/* ---------- #5 Falling sand ---------- */
+FX.register({
+  id:'sand', name:'Falling sand', cat:'vanilla', rank:5, mode:'2d',
+  trick:'A grid where each cell obeys one rule: fall down, else slide diagonally; water also spreads sideways. Process bottom-up.',
+  src:"if below empty -> move down\nelse if diag empty -> move there\n(water: also try left/right)",
+  setup(env){
+    const {ctx,w,h}=env; const SC=4; const gw=Math.floor(w/SC), gh=Math.floor(h/SC);
+    const EMPTY=0,SAND=1,WATER=2,WALL=3; let g=new Uint8Array(gw*gh);
+    const off=document.createElement('canvas'); off.width=gw; off.height=gh; const octx=off.getContext('2d');
+    const img=octx.createImageData(gw,gh);
+    let brush=SAND;
+    ctlSelect(env,'brush',['sand','water','wall','erase'],v=>{ brush={sand:SAND,water:WATER,wall:WALL,erase:EMPTY}[v]; });
+    ctlButton(env,'clear',()=>g.fill(0));
+    const cBg=U.hexToRgb(env.pal().bg), cSand=U.hexToRgb(env.pal().p3), cWater=U.hexToRgb(env.pal().p1), cWall=U.hexToRgb(env.pal().dim);
+    ctx.imageSmoothingEnabled=false;
+    function set(i,v){ if(i>=0&&i<gw*gh) g[i]=v; }
+    return {draw(){
+      /* emitters keep it alive */
+      if(Math.random()<0.8) g[(2)*gw + ((Math.random()*gw)|0)]=SAND;
+      if(Math.random()<0.5) g[(2)*gw + ((Math.random()*gw)|0)]=WATER;
+      const m=env.mouse; if(m.inside&&m.down){ const cx=(m.nx*gw)|0, cy=(m.ny*gh)|0; for(let y=-2;y<=2;y++)for(let x=-2;x<=2;x++){const xx=cx+x,yy=cy+y; if(xx>=0&&xx<gw&&yy>=0&&yy<gh)g[yy*gw+xx]=brush;} }
+      for(let y=gh-2;y>=0;y--){ const lr=Math.random()<.5?1:-1;
+        for(let k=0;k<gw;k++){ const x=lr>0?k:gw-1-k; const i=y*gw+x, c=g[i]; if(c===EMPTY||c===WALL)continue;
+          const below=i+gw;
+          if(g[below]===EMPTY){ g[below]=c; g[i]=EMPTY; continue; }
+          if(c===WATER&&g[below]===EMPTY){}
+          const dl=below-1, dr=below+1;
+          const canL=(x>0)&&g[dl]===EMPTY, canR=(x<gw-1)&&g[dr]===EMPTY;
+          if(canL||canR){ if(canL&&canR){ g[Math.random()<.5?dl:dr]=c; } else if(canL){ g[dl]=c; } else { g[dr]=c; } g[i]=EMPTY; continue; }
+          if(c===WATER){ const sl=i-1, sr=i+1; const wl=(x>0)&&g[sl]===EMPTY, wr=(x<gw-1)&&g[sr]===EMPTY;
+            if(wl&&wr){ g[Math.random()<.5?sl:sr]=c; g[i]=EMPTY; } else if(wl){ g[sl]=c; g[i]=EMPTY; } else if(wr){ g[sr]=c; g[i]=EMPTY; } }
+        }
+      }
+      const d=img.data; for(let i=0;i<gw*gh;i++){ const c=g[i]; const j=i*4; let col=cBg;
+        if(c===SAND)col=cSand; else if(c===WATER)col=cWater; else if(c===WALL)col=cWall;
+        d[j]=col[0]; d[j+1]=col[1]; d[j+2]=col[2]; d[j+3]=255; }
+      octx.putImageData(img,0,0); ctx.imageSmoothingEnabled=false; ctx.drawImage(off,0,0,w,h);
+    }};
+  }
+});
+
+/* ---------- #6 Julia set (animated) ---------- */
+FX.register({
+  id:'julia', name:'Julia set', cat:'vanilla', rank:6, mode:'2d',
+  trick:'Per pixel, iterate z ← z² + c until it escapes. Move c on a slow circle and the whole fractal breathes. Drag to steer c.',
+  src:"z = z*z + c   (complex)\ncount steps until |z|>2 -> colour\nc = 0.7885 * e^(i·θ) animates it",
+  setup(env){
+    const {ctx,w,h}=env; const SC=4; const gw=Math.floor(w/SC), gh=Math.floor(h/SC);
+    const off=document.createElement('canvas'); off.width=gw; off.height=gh; const octx=off.getContext('2d');
+    const img=octx.createImageData(gw,gh); let th=0; const MAX=90;
+    const c0=U.hexToRgb(env.pal().bg), c1=U.hexToRgb(env.pal().p3), c2=U.hexToRgb(env.pal().p1), c3=U.hexToRgb(env.pal().p2);
+    ctx.imageSmoothingEnabled=true;
+    return {draw(){
+      const m=env.mouse; let cre,cim;
+      if(m.inside){ cre=(m.nx*3-1.5); cim=(m.ny*3-1.5); } else { cre=0.7885*Math.cos(th); cim=0.7885*Math.sin(th); th+=0.0045; }
+      const d=img.data; const sx=3.2/gw, sy=3.2/gh;
+      for(let py=0;py<gh;py++){ const y0=(py*sy)-1.6; for(let px=0;px<gw;px++){ let x=(px*sx)-1.6, y=y0, n=0;
+        while(n<MAX){ const xx=x*x-y*y+cre, yy=2*x*y+cim; x=xx; y=yy; if(x*x+y*y>4)break; n++; }
+        const j=(py*gw+px)*4; let cr,cg,cb;
+        if(n>=MAX){ cr=c0[0];cg=c0[1];cb=c0[2]; }
+        else { const t=n/MAX; if(t<.5){const u=t/.5; cr=c0[0]+(c1[0]-c0[0])*u; cg=c0[1]+(c1[1]-c0[1])*u; cb=c0[2]+(c1[2]-c0[2])*u;}
+          else if(t<.8){const u=(t-.5)/.3; cr=c1[0]+(c2[0]-c1[0])*u; cg=c1[1]+(c2[1]-c1[1])*u; cb=c1[2]+(c2[2]-c1[2])*u;}
+          else {const u=(t-.8)/.2; cr=c2[0]+(c3[0]-c2[0])*u; cg=c2[1]+(c3[1]-c2[1])*u; cb=c2[2]+(c3[2]-c2[2])*u;} }
+        d[j]=cr; d[j+1]=cg; d[j+2]=cb; d[j+3]=255;
+      }}
+      octx.putImageData(img,0,0); ctx.drawImage(off,0,0,w,h);
+    }};
+  }
+});
+
+/* ---------- #7 Plasma ---------- */
+FX.register({
+  id:'plasma', name:'Plasma', cat:'vanilla', rank:7, mode:'2d',
+  trick:'Sum a few sines of x, y, x+y and radius, then run the result through a shifting palette. The whole demoscene in one line.',
+  src:"v = sin(x) + sin(y) + sin((x+y)/2)\n  + sin(hypot(x,y)) + t\npalette(v)  // cycle colours",
+  setup(env){
+    const {ctx,w,h}=env; const SC=4; const gw=Math.floor(w/SC), gh=Math.floor(h/SC);
+    const off=document.createElement('canvas'); off.width=gw; off.height=gh; const octx=off.getContext('2d');
+    const img=octx.createImageData(gw,gh); let t=0;
+    const A=U.hexToRgb(env.pal().bg), B=U.hexToRgb(env.pal().p3), C=U.hexToRgb(env.pal().p1), D=U.hexToRgb(env.pal().p2);
+    ctx.imageSmoothingEnabled=true;
+    function ramp(v){ v=(v+1)/2; v=v-Math.floor(v); let a,b,u; if(v<.33){a=A;b=B;u=v/.33;} else if(v<.66){a=B;b=C;u=(v-.33)/.33;} else {a=C;b=D;u=(v-.66)/.34;} return [a[0]+(b[0]-a[0])*u,a[1]+(b[1]-a[1])*u,a[2]+(b[2]-a[2])*u]; }
+    return {draw(){
+      const d=img.data; t+=0.03;
+      for(let y=0;y<gh;y++)for(let x=0;x<gw;x++){
+        const v=Math.sin(x*0.07+t)+Math.sin(y*0.09-t*0.8)+Math.sin((x+y)*0.05+t*0.6)+Math.sin(Math.sqrt(x*x+y*y)*0.07-t);
+        const c=ramp(v/4); const i=(y*gw+x)*4; d[i]=c[0]; d[i+1]=c[1]; d[i+2]=c[2]; d[i+3]=255;
+      }
+      octx.putImageData(img,0,0); ctx.drawImage(off,0,0,w,h);
+    }};
+  }
+});
+
+/* ---------- #8 Tixy dot field ---------- */
+FX.register({
+  id:'tixy', name:'Tixy field', cat:'vanilla', rank:8, mode:'2d',
+  trick:'A 16×16 grid of dots driven by one tiny formula f(t,i,x,y). Sign picks colour, magnitude picks size. 32 chars of art.',
+  src:"for each dot (x,y), i = y*16+x:\n  v = f(t,i,x,y)   // in [-1,1]\n  radius = |v|; colour = sign(v)",
+  setup(env){
+    const {ctx,w,h}=env; const G=16; let t=0;
+    const presets={
+      'sin(t)':(t,i,x,y)=>Math.sin(t),
+      'wave':(t,i,x,y)=>Math.sin(y/2+t),
+      'ripple':(t,i,x,y)=>Math.sin(t-Math.hypot(x-7.5,y-7.5)/2),
+      'spiral':(t,i,x,y)=>Math.sin(t+Math.atan2(y-7.5,x-7.5)*3+Math.hypot(x-7.5,y-7.5)),
+      'xor':(t,i,x,y)=>((x^y)%4)/2-0.5,
+      'pulse':(t,i,x,y)=>Math.sin(t-i/16)
+    };
+    let key='ripple', f=presets[key];
+    ctlSelect(env,'f',Object.keys(presets),v=>{key=v; f=presets[v];});
+    return {draw(){
+      ctx.fillStyle=env.pal().bg; ctx.fillRect(0,0,w,h); t+=0.04;
+      const cell=Math.min(w,h)/G, ox=(w-cell*G)/2, oy=(h-cell*G)/2, r0=cell*0.42;
+      for(let y=0;y<G;y++)for(let x=0;x<G;x++){ const i=y*G+x; let v=f(t,i,x,y); v=v<-1?-1:v>1?1:v;
+        const r=Math.abs(v)*r0; if(r<0.4)continue;
+        ctx.beginPath(); ctx.arc(ox+x*cell+cell/2, oy+y*cell+cell/2, r, 0, U.TAU);
+        ctx.fillStyle=v>=0?env.pal().p1:env.pal().p2; ctx.fill();
+      }
+    }};
+  }
+});
+
+/* ---------- #9 Matrix rain ---------- */
+FX.register({
+  id:'matrix', name:'Digital rain', cat:'vanilla', rank:9, mode:'2d',
+  trick:'One falling Y per column; draw a random glyph, nudge it down, reset at random. The leading glyph is brighter. Same trail-fade.',
+  src:"fillRect(rgba(bg,0.06)) // fade\nfor each column: draw glyph at y\n  y += step; reset if y>h randomly",
+  setup(env){
+    const {ctx,w,h}=env; const fs=Math.max(12,Math.round(w/34)); const cols=Math.floor(w/fs);
+    let drops=new Array(cols).fill(0).map(()=>Math.random()*-h);
+    const glyphs='ｱｲｳｴｵｶｷｸ0123456789ΩΨΞΛ$#&@<>'.split('');
+    return {draw(){
+      ctx.fillStyle=U.rgba(env.pal().bg,0.07); ctx.fillRect(0,0,w,h);
+      ctx.font=fs+'px '+'monospace';
+      for(let i=0;i<cols;i++){ const x=i*fs, y=drops[i];
+        const g=glyphs[(Math.random()*glyphs.length)|0];
+        ctx.fillStyle=env.pal().p1; ctx.globalAlpha=1; ctx.fillText(g,x,y);
+        ctx.fillStyle=env.pal().light?'#0a3a4a':'#eafcff'; ctx.globalAlpha=.9; ctx.fillText(glyphs[(Math.random()*glyphs.length)|0],x,y-fs);
+        drops[i]+=fs*0.9; if(drops[i]>h && Math.random()>0.975) drops[i]=Math.random()*-60;
+      }
+      ctx.globalAlpha=1;
+    }};
+  }
+});
+
+/* ---------- #10 Starfield warp ---------- */
+FX.register({
+  id:'stars', name:'Starfield warp', cat:'vanilla', rank:10, mode:'2d',
+  trick:'Give each star a z; shrink z each frame and project with perspective. Closer = bigger, faster, brighter. Streaks via trail-fade.',
+  src:"k = fov / z\nscreen = (x*k + cx, y*k + cy)\nz -= speed; reset star when z < 1",
+  setup(env){
+    const {ctx,w,h}=env; let N=Math.round(U.clamp(w*h/700,200,900)); let s=[]; let speed=0.025;
+    function seed(){ s=[]; for(let i=0;i<N;i++) s.push({x:U.rand(-1,1),y:U.rand(-1,1),z:U.rand(0.02,1)}); }
+    seed();
+    ctlRange(env,'warp',6,60,25,1,v=>{speed=v/2200;});
+    return {draw(){
+      ctx.fillStyle=U.rgba(env.pal().bg,0.3); ctx.fillRect(0,0,w,h);
+      const cx=w/2, cy=h/2, scale=Math.max(w,h)*0.6;
+      const m=env.mouse, ox=m.inside?(m.nx-.5)*0.8:0, oy=m.inside?(m.ny-.5)*0.8:0;
+      for(const st of s){ st.z-=speed; if(st.z<=0.02){ st.x=U.rand(-1,1); st.y=U.rand(-1,1); st.z=1; }
+        const sx=cx+((st.x+ox)/st.z)*scale, sy=cy+((st.y+oy)/st.z)*scale;
+        if(sx<0||sx>w||sy<0||sy>h)continue;
+        const r=(1-st.z)*2.6+0.3;
+        ctx.beginPath(); ctx.arc(sx,sy,r,0,U.TAU);
+        ctx.fillStyle=((st.z*30)|0)%6===0?env.pal().p2:env.pal().p1; ctx.globalAlpha=U.clamp(1-st.z,.12,1); ctx.fill();
+      }
+      ctx.globalAlpha=1;
+    }};
+  }
+});
+
+/* ---------- #11 Game of Life ---------- */
+FX.register({
+  id:'life', name:"Conway's Life", cat:'vanilla', rank:11, mode:'2d',
+  trick:'Each cell lives if it has 2–3 neighbours, is born with exactly 3, else dies. Gliders and chaos from one rule. Paint to disturb it.',
+  src:"n = sum of 8 neighbours\nalive  & (n==2||n==3) -> live\ndead   & (n==3)       -> born",
+  setup(env){
+    const {ctx,w,h}=env; const SC=6; const gw=Math.floor(w/SC), gh=Math.floor(h/SC);
+    let g=new Uint8Array(gw*gh), g2=new Uint8Array(gw*gh), age=new Uint16Array(gw*gh);
+    const off=document.createElement('canvas'); off.width=gw; off.height=gh; const octx=off.getContext('2d');
+    const img=octx.createImageData(gw,gh); let acc=0;
+    function seed(){ for(let i=0;i<gw*gh;i++){ g[i]=Math.random()<0.28?1:0; age[i]=0; } }
+    seed();
+    ctlButton(env,'reseed',()=>seed());
+    const cBg=U.hexToRgb(env.pal().bg), cY=U.hexToRgb(env.pal().p1), cO=U.hexToRgb(env.pal().p3);
+    ctx.imageSmoothingEnabled=false;
+    function step(){ for(let y=0;y<gh;y++)for(let x=0;x<gw;x++){ let n=0;
+        for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){ if(!dx&&!dy)continue; const xx=(x+dx+gw)%gw, yy=(y+dy+gh)%gh; n+=g[yy*gw+xx]; }
+        const i=y*gw+x; const a=g[i]; g2[i]=(a&&(n===2||n===3))||(!a&&n===3)?1:0; age[i]=g2[i]?Math.min(300,age[i]+1):0; }
+      const t=g; g=g2; g2=t;
+    }
+    return {draw(){
+      const m=env.mouse; if(m.inside&&m.down){ const cx=(m.nx*gw)|0, cy=(m.ny*gh)|0; for(let y=-2;y<=2;y++)for(let x=-2;x<=2;x++){const xx=(cx+x+gw)%gw,yy=(cy+y+gh)%gh; g[yy*gw+xx]=1;} }
+      acc++; if(acc%2===0) step();
+      const d=img.data; for(let i=0;i<gw*gh;i++){ const j=i*4; if(g[i]){ const t=U.clamp(age[i]/40,0,1); d[j]=cY[0]+(cO[0]-cY[0])*t; d[j+1]=cY[1]+(cO[1]-cY[1])*t; d[j+2]=cY[2]+(cO[2]-cY[2])*t; }
+        else { d[j]=cBg[0]; d[j+1]=cBg[1]; d[j+2]=cBg[2]; } d[j+3]=255; }
+      octx.putImageData(img,0,0); ctx.imageSmoothingEnabled=false; ctx.drawImage(off,0,0,w,h);
+    }};
+  }
+});
+
+/* ---------- #12 Water ripple (height field) ---------- */
+FX.register({
+  id:'ripple', name:'Water ripple', cat:'vanilla', rank:12, mode:'2d',
+  trick:'Two height buffers: new height = average of 4 neighbours minus old, then damp. Shade by the slope and it looks like lit water.',
+  src:"cur[i] = (prev of 4 neighbours)/2 - cur[i]\ncur[i] -= cur[i] >> 5   // damping\nlight from the height gradient",
+  setup(env){
+    const {ctx,w,h}=env; const SC=3; const gw=Math.floor(w/SC), gh=Math.floor(h/SC);
+    let a=new Float32Array(gw*gh), b=new Float32Array(gw*gh);
+    const off=document.createElement('canvas'); off.width=gw; off.height=gh; const octx=off.getContext('2d');
+    const img=octx.createImageData(gw,gh); let acc=0;
+    const cBg=U.hexToRgb(env.pal().bg), cMid=U.hexToRgb(env.pal().p3), cHi=U.hexToRgb(env.pal().p1);
+    ctx.imageSmoothingEnabled=true;
+    function drop(x,y,amp){ if(x>1&&x<gw-2&&y>1&&y<gh-2){ const i=y*gw+x; a[i]+=amp; a[i-1]+=amp*.5; a[i+1]+=amp*.5; a[i-gw]+=amp*.5; a[i+gw]+=amp*.5; } }
+    return {draw(){
+      acc++; if(acc%26===0) drop((U.rand(2,gw-2))|0,(U.rand(2,gh-2))|0,U.rand(160,360));
+      const m=env.mouse; if(m.inside&&m.down) drop((m.nx*gw)|0,(m.ny*gh)|0,320);
+      for(let y=1;y<gh-1;y++)for(let x=1;x<gw-1;x++){ const i=y*gw+x;
+        let v=((a[i-1]+a[i+1]+a[i-gw]+a[i+gw])*0.5)-b[i]; v-=v*0.031; b[i]=v; }
+      const t=a; a=b; b=t;
+      const d=img.data; for(let y=1;y<gh-1;y++)for(let x=1;x<gw-1;x++){ const i=y*gw+x;
+        const dx=a[i-1]-a[i+1], dy=a[i-gw]-a[i+gw]; let s=(dx+dy)*0.5+a[i]*0.15;
+        let l=U.clamp(0.5+s*0.02,0,1); const j=i*4;
+        let cr,cg,cb; if(l<.5){const u=l/.5; cr=cBg[0]+(cMid[0]-cBg[0])*u; cg=cBg[1]+(cMid[1]-cBg[1])*u; cb=cBg[2]+(cMid[2]-cBg[2])*u;}
+        else {const u=(l-.5)/.5; cr=cMid[0]+(cHi[0]-cMid[0])*u; cg=cMid[1]+(cHi[1]-cMid[1])*u; cb=cMid[2]+(cHi[2]-cMid[2])*u;}
+        d[j]=cr; d[j+1]=cg; d[j+2]=cb; d[j+3]=255; }
+      octx.putImageData(img,0,0); ctx.drawImage(off,0,0,w,h);
+    }};
+  }
+});
+
+/* ---------- #13 Fireworks ---------- */
+FX.register({
+  id:'fireworks', name:'Fireworks', cat:'vanilla', rank:13, mode:'2d',
+  trick:'A particle system: emit, add gravity, fade life, recycle. Rockets rise then burst into sparks. Additive blend + trail-fade = glow.',
+  src:"spark.vy += gravity\nspark.life -= dt;  alpha = life\n// burst: N sparks, random radial velocity",
+  setup(env){
+    const {ctx,w,h}=env; let rockets=[], sparks=[];
+    const cols=[env.pal().p1,env.pal().p2,env.pal().p3,env.pal().warn];
+    function launch(tx){ rockets.push({x:tx,y:h,vy:-U.rand(6,9),vx:U.rand(-.6,.6),col:cols[(Math.random()*cols.length)|0],ty:U.rand(h*0.12,h*0.5)}); }
+    let acc=0;
+    return {draw(){
+      ctx.globalCompositeOperation='source-over';
+      ctx.fillStyle=U.rgba(env.pal().bg,0.18); ctx.fillRect(0,0,w,h);
+      acc++; if(acc% (28)===0) launch(U.rand(w*0.15,w*0.85));
+      const m=env.mouse; if(m.inside&&m.down&&acc%6===0) launch(m.x);
+      ctx.globalCompositeOperation='lighter';
+      for(let i=rockets.length-1;i>=0;i--){ const r=rockets[i]; r.x+=r.vx; r.y+=r.vy; r.vy+=0.06;
+        ctx.beginPath(); ctx.arc(r.x,r.y,2,0,U.TAU); ctx.fillStyle=r.col; ctx.fill();
+        if(r.vy>=0||r.y<=r.ty){ const n=44; for(let k=0;k<n;k++){ const a=U.rand(0,U.TAU), sp=U.rand(1,4.5); sparks.push({x:r.x,y:r.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:1,col:r.col}); } rockets.splice(i,1); } }
+      for(let i=sparks.length-1;i>=0;i--){ const s=sparks[i]; s.vx*=0.985; s.vy=s.vy*0.985+0.04; s.x+=s.vx; s.y+=s.vy; s.life-=0.012;
+        if(s.life<=0){ sparks.splice(i,1); continue; }
+        ctx.beginPath(); ctx.arc(s.x,s.y,1.6,0,U.TAU); ctx.fillStyle=s.col; ctx.globalAlpha=s.life; ctx.fill(); }
+      ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over';
+    }};
+  }
+});
+
+/* ---------- #14 Audio bars (synthetic, mic optional) ---------- */
+FX.register({
+  id:'audio', name:'Spectrum bars', cat:'vanilla', rank:14, mode:'2d',
+  trick:'Read frequency bins from an AnalyserNode and draw a bar per bin. No mic? A synthetic spectrum stands in until you grant one.',
+  src:"analyser.fftSize = 256\nanalyser.getByteFrequencyData(bins)\nbar.height ∝ bins[i]",
+  setup(env){
+    const {ctx,w,h}=env; const N=48; let bins=new Float32Array(N); let t=0; let analyser=null, data=null, actx=null;
+    const peaks=[]; for(let i=0;i<5;i++) peaks.push({p:Math.random(),s:U.rand(.0008,.003),wd:U.rand(.05,.16)});
+    ctlButton(env,'use mic',async(b)=>{ try{ actx=new (window.AudioContext||window.webkitAudioContext)(); const st=await navigator.mediaDevices.getUserMedia({audio:true}); const src=actx.createMediaStreamSource(st); analyser=actx.createAnalyser(); analyser.fftSize=128; data=new Uint8Array(analyser.frequencyBinCount); src.connect(analyser); b.textContent='mic live'; b.classList.add('on'); }catch(e){ b.textContent='mic denied'; } });
+    return {draw(){ t+=1;
+      if(analyser){ analyser.getByteFrequencyData(data); for(let i=0;i<N;i++){ const v=data[Math.min(data.length-1,i)]/255; bins[i]=bins[i]*0.6+v*0.4; } }
+      else { for(let i=0;i<N;i++){ const x=i/N; let v=0; for(const pk of peaks){ pk.p+=pk.s; if(pk.p>1)pk.p-=1; const d=Math.abs(x-pk.p); v+=Math.exp(-(d*d)/(pk.wd*pk.wd)); } v=v*0.5*(0.6+0.4*Math.sin(t*0.05+i)); bins[i]=bins[i]*0.7+U.clamp(v,0,1)*0.3; } }
+      ctx.fillStyle=env.pal().bg; ctx.fillRect(0,0,w,h);
+      const bw=w/N, mid=h*0.92;
+      for(let i=0;i<N;i++){ const bh=bins[i]*h*0.8; const x=i*bw; const col=bins[i]<.4?env.pal().p3:bins[i]<.7?env.pal().p1:env.pal().p2;
+        ctx.fillStyle=col; ctx.fillRect(x+1, mid-bh, bw-2, bh);
+        ctx.globalAlpha=0.22; ctx.fillRect(x+1, mid+2, bw-2, bh*0.4); ctx.globalAlpha=1; }
+    }};
+  }
+});
+
+/* ---------- #15 Dithering ---------- */
+FX.register({
+  id:'dither', name:'Error-diffusion dither', cat:'vanilla', rank:15, mode:'2d',
+  trick:'Snap each pixel to the nearest palette colour, then push the leftover error onto its neighbours. A smooth gradient becomes living grain.',
+  src:"err = old - nearest(old)\nright += err*7/16; below-left += 3/16\nbelow += 5/16; below-right += 1/16",
+  setup(env){
+    const {ctx,w,h}=env; const SC=4; const gw=Math.floor(w/SC), gh=Math.floor(h/SC);
+    const off=document.createElement('canvas'); off.width=gw; off.height=gh; const octx=off.getContext('2d');
+    const img=octx.createImageData(gw,gh); const buf=new Float32Array(gw*gh); let t=0;
+    const ramp=[U.hexToRgb(env.pal().bg),U.hexToRgb(env.pal().p3),U.hexToRgb(env.pal().p1),U.hexToRgb(env.pal().light?'#0a3a4a':'#eafcff')];
+    ctx.imageSmoothingEnabled=false;
+    return {draw(){ t+=0.012;
+      for(let y=0;y<gh;y++)for(let x=0;x<gw;x++){ const v=U.fbm(x*0.05+t, y*0.05-t*0.6); buf[y*gw+x]=U.clamp(v*1.4,0,1); }
+      const L=ramp.length-1;
+      for(let y=0;y<gh;y++)for(let x=0;x<gw;x++){ const i=y*gw+x; const old=buf[i]; const q=Math.round(old*L)/L; const err=old-q; buf[i]=q;
+        if(x+1<gw)buf[i+1]+=err*7/16; if(x>0&&y+1<gh)buf[i+gw-1]+=err*3/16; if(y+1<gh)buf[i+gw]+=err*5/16; if(x+1<gw&&y+1<gh)buf[i+gw+1]+=err*1/16; }
+      const d=img.data; for(let i=0;i<gw*gh;i++){ const idx=U.clamp(Math.round(buf[i]*L),0,L); const c=ramp[idx]; const j=i*4; d[j]=c[0]; d[j+1]=c[1]; d[j+2]=c[2]; d[j+3]=255; }
+      octx.putImageData(img,0,0); ctx.imageSmoothingEnabled=false; ctx.drawImage(off,0,0,w,h);
+    }};
+  }
+});
+
+/* ---------- #16 Harmonograph ---------- */
+FX.register({
+  id:'harmo', name:'Harmonograph', cat:'vanilla', rank:16, mode:'2d',
+  trick:'Two perpendicular damped sinusoids trace a pen. Rational frequency ratios give Lissajous loops; damping winds them into a spiral.',
+  src:"x = A·sin(a·t + φ)·e^(-d·t)\ny = B·sin(b·t)·e^(-d·t)\n// draw the path point by point",
+  setup(env){
+    const {ctx,w,h}=env; let t=0, P;
+    function fresh(){ P={a:U.rand(2,5),b:U.rand(2,5),f:U.rand(0,U.TAU),f2:U.rand(0,U.TAU),d:U.rand(0.002,0.006)}; t=0; ctx.fillStyle=env.pal().bg; ctx.fillRect(0,0,w,h); }
+    fresh();
+    ctlButton(env,'new figure',()=>fresh());
+    return {draw(){
+      ctx.fillStyle=U.rgba(env.pal().bg,0.012); ctx.fillRect(0,0,w,h);
+      ctx.globalCompositeOperation='lighter';
+      const cx=w/2, cy=h/2, A=w*0.34, B=h*0.34;
+      ctx.beginPath();
+      for(let k=0;k<260;k++){ const tt=t+k*0.012; const e=Math.exp(-P.d*tt);
+        const x=cx+A*Math.sin(P.a*tt+P.f)*e; const y=cy+B*Math.sin(P.b*tt+P.f2)*e;
+        if(k===0)ctx.moveTo(x,y); else ctx.lineTo(x,y); }
+      const hue=(Math.sin(t*0.02)*0.5+0.5);
+      ctx.strokeStyle=U.mix(env.pal().p1, env.pal().p2, hue); ctx.lineWidth=1.2; ctx.globalAlpha=.7; ctx.stroke();
+      ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over';
+      t+=260*0.012; if(t>900) fresh();
+    }};
+  }
+});
+
+/* ---------- #17 Constellation network ---------- */
+FX.register({
+  id:'net', name:'Constellation', cat:'vanilla', rank:17, mode:'2d',
+  trick:'Drifting dots; for every pair closer than a threshold, draw a line whose opacity fades with distance. The cursor becomes a node.',
+  src:"for each pair (i,j):\n  if dist < D: line, alpha = 1 - dist/D",
+  setup(env){
+    const {ctx,w,h}=env; let N=Math.round(U.clamp(w*h/9000,30,90)); let p=[]; const D=120;
+    function seed(){ p=[]; for(let i=0;i<N;i++) p.push({x:Math.random()*w,y:Math.random()*h,vx:U.rand(-.4,.4),vy:U.rand(-.4,.4)}); }
+    seed(); ctlRange(env,'nodes',20,140,N,5,v=>{N=Math.round(v);seed();});
+    return {draw(){
+      ctx.fillStyle=env.pal().bg; ctx.fillRect(0,0,w,h);
+      const m=env.mouse; const nodes=p.slice(); if(m.inside) nodes.push({x:m.x,y:m.y});
+      for(const q of p){ q.x+=q.vx; q.y+=q.vy; if(q.x<0||q.x>w)q.vx*=-1; if(q.y<0||q.y>h)q.vy*=-1; }
+      for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){ const dx=nodes[i].x-nodes[j].x, dy=nodes[i].y-nodes[j].y, d=Math.hypot(dx,dy);
+        if(d<D){ ctx.strokeStyle=U.rgba(env.pal().p3, (1-d/D)*0.5); ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(nodes[i].x,nodes[i].y); ctx.lineTo(nodes[j].x,nodes[j].y); ctx.stroke(); } }
+      for(const q of nodes){ ctx.beginPath(); ctx.arc(q.x,q.y,2,0,U.TAU); ctx.fillStyle=env.pal().p1; ctx.fill(); }
+    }};
+  }
+});
+
+/* ---------- #18 Sine dot grid ---------- */
+FX.register({
+  id:'sinegrid', name:'Sine dot grid', cat:'vanilla', rank:18, mode:'2d',
+  trick:'A grid of dots whose radius is a sine of their distance to a moving centre. A ripple that never touches the canvas. Move the cursor to drive it.',
+  src:"r = base + amp·sin(dist/λ − t)\n// centre follows the cursor",
+  setup(env){
+    const {ctx,w,h}=env; let t=0; const gap=22;
+    return {draw(){
+      ctx.fillStyle=env.pal().bg; ctx.fillRect(0,0,w,h); t+=0.05;
+      const m=env.mouse; const cx=m.inside?m.x:w/2+Math.cos(t*0.3)*w*0.2, cy=m.inside?m.y:h/2+Math.sin(t*0.4)*h*0.2;
+      const cols=Math.ceil(w/gap), rows=Math.ceil(h/gap);
+      for(let gy=0;gy<rows;gy++)for(let gx=0;gx<cols;gx++){ const x=gx*gap+gap/2, y=gy*gap+gap/2;
+        const dist=Math.hypot(x-cx,y-cy); const v=Math.sin(dist*0.06-t); const r=2.2+v*2.4; if(r<0.3)continue;
+        ctx.beginPath(); ctx.arc(x,y,Math.max(0.3,r),0,U.TAU);
+        ctx.fillStyle=v>0?env.pal().p1:env.pal().p3; ctx.globalAlpha=0.4+0.6*Math.abs(v); ctx.fill(); }
+      ctx.globalAlpha=1;
+    }};
+  }
+});
+
+/* ============================================================
+   WebGL infrastructure for Category B
+   ============================================================ */
+const _scripts = {};
+function loadScript(url){
+  if(_scripts[url]) return _scripts[url];
+  _scripts[url] = new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=url; s.async=true; s.onload=()=>res(); s.onerror=()=>rej(new Error('failed to load '+url)); document.head.appendChild(s); });
+  return _scripts[url];
+}
+function v3(hex){ const c=U.hexToRgb(hex); return new Float32Array([c[0]/255,c[1]/255,c[2]/255]); }
+
+/* shared GLSL: hash / value-noise / fbm — prepend to fragment shaders that need it */
+const NOISE_GLSL = `
+float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453123); }
+float noise(vec2 p){ vec2 i=floor(p), f=fract(p); vec2 u=f*f*(3.-2.*f);
+  return mix(mix(hash(i),hash(i+vec2(1.,0.)),u.x), mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.,1.)),u.x), u.y); }
+float fbm(vec2 p){ float v=0., a=0.5; for(int i=0;i<5;i++){ v+=a*noise(p); p*=2.02; a*=0.5; } return v; }
+`;
+
+/* full-screen fragment-shader helper (one big triangle) */
+function glQuad(gl, frag){
+  const vsrc = 'attribute vec2 p; void main(){ gl_Position=vec4(p,0.,1.); }';
+  function sh(type,src){ const s=gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s);
+    if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)||'shader compile error'); return s; }
+  const prog=gl.createProgram();
+  gl.attachShader(prog, sh(gl.VERTEX_SHADER, vsrc));
+  gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, frag));
+  gl.linkProgram(prog);
+  if(!gl.getProgramParameter(prog,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog)||'link error');
+  const buf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+  const ploc=gl.getAttribLocation(prog,'p'); const cache={};
+  return {
+    prog,
+    u(n){ if(!(n in cache)) cache[n]=gl.getUniformLocation(prog,n); return cache[n]; },
+    use(){ gl.useProgram(prog); gl.bindBuffer(gl.ARRAY_BUFFER,buf); gl.enableVertexAttribArray(ploc); gl.vertexAttribPointer(ploc,2,gl.FLOAT,false,0,0); },
+    palette(env){ const p=env.pal(); gl.uniform3fv(this.u('u_bg'),v3(p.bg)); gl.uniform3fv(this.u('u_c1'),v3(p.p1)); gl.uniform3fv(this.u('u_c2'),v3(p.p2)); gl.uniform3fv(this.u('u_c3'),v3(p.p3)); },
+    draw(){ gl.drawArrays(gl.TRIANGLES,0,3); },
+    free(){ gl.deleteProgram(prog); gl.deleteBuffer(buf); }
+  };
+}
+
+/* ---------- #1(B) Raymarched SDF metaballs ---------- */
+FX.register({
+  id:'raymarch', name:'Raymarched blobs', cat:'gpu', rank:1, mode:'gl',
+  trick:'No geometry — one fragment shader marches a ray until it hits the distance field of five smooth-merged spheres. Drag to orbit the camera.',
+  src:"d = smin(d, length(p - c_i) - r, k)   // 3D metaballs\nmarch: p += rd * d  until d < eps\nnormal = gradient of the field",
+  setup(env){
+    const gl=env.gl; const frag=`precision highp float;
+      uniform vec2 u_res; uniform float u_time; uniform vec2 u_mouse; uniform vec3 u_bg,u_c1,u_c2,u_c3;
+      float smin(float a,float b,float k){ float h=clamp(.5+.5*(b-a)/k,0.,1.); return mix(b,a,h)-k*h*(1.-h); }
+      float map(vec3 p){ float d=1e5; for(int i=0;i<5;i++){ float fi=float(i);
+        vec3 c=vec3(sin(u_time*0.7+fi*1.7), cos(u_time*0.5+fi*2.3), sin(u_time*0.6+fi*0.9))*1.15;
+        d=smin(d, length(p-c)-0.55, 0.8); } return d; }
+      vec3 nrm(vec3 p){ vec2 e=vec2(0.001,0.); return normalize(vec3(map(p+e.xyy)-map(p-e.xyy), map(p+e.yxy)-map(p-e.yxy), map(p+e.yyx)-map(p-e.yyx))); }
+      void main(){ vec2 uv=(gl_FragCoord.xy-0.5*u_res)/u_res.y;
+        float ax=(u_mouse.x-0.5)*3.1; vec3 ro=vec3(0.,0.,4.6); vec3 rd=normalize(vec3(uv,-1.5));
+        float ca=cos(ax), sa=sin(ax); mat2 ry=mat2(ca,-sa,sa,ca); ro.xz=ry*ro.xz; rd.xz=ry*rd.xz;
+        float t=0.0, glow=0.0; bool hit=false; vec3 col=u_bg;
+        for(int i=0;i<70;i++){ vec3 p=ro+rd*t; float d=map(p); glow+=0.018/(1.0+d*d*14.0);
+          if(d<0.002){ hit=true; vec3 n=nrm(p); float diff=clamp(dot(n,normalize(vec3(0.6,0.8,0.4))),0.,1.);
+            float rim=pow(1.0-clamp(dot(n,-rd),0.,1.),2.5); col=mix(u_c3,u_c1,diff); col=mix(col,u_c2,rim*0.7); break; }
+          t+=d; if(t>9.0) break; }
+        vec3 outc = hit?col:u_bg; outc += u_c1*glow*0.55; gl_FragColor=vec4(outc,1.0); }`;
+    let q; try{ q=glQuad(gl,frag); }catch(e){ env.fail('shader error'); return {}; }
+    const t0=performance.now();
+    return {
+      draw(){ gl.viewport(0,0,env.canvas.width,env.canvas.height); q.use();
+        gl.uniform2f(q.u('u_res'),env.canvas.width,env.canvas.height);
+        gl.uniform1f(q.u('u_time'),(performance.now()-t0)/1000);
+        gl.uniform2f(q.u('u_mouse'), env.mouse.inside?env.mouse.nx:0.5, env.mouse.inside?env.mouse.ny:0.5);
+        q.palette(env); q.draw(); },
+      teardown(){ if(q)q.free(); }
+    };
+  }
+});
+
+/* ---------- #2(B) GPU curl-noise particles ---------- */
+FX.register({
+  id:'curl', name:'Curl-noise particles', cat:'gpu', rank:2, mode:'gl',
+  trick:'Tens of thousands of points whose entire path is computed on the GPU: each integrates a few steps of curl noise in the vertex shader. Nothing is stored.',
+  src:"// vertex shader, per point id:\np = hash(id);\nfor 18 steps: p += curl(noise field, p, time)\ngl_Position = p;  additive blend",
+  setup(env){
+    const gl=env.gl;
+    const vsrc=`precision highp float; attribute float a_id; uniform float u_time; uniform vec2 u_res; varying float v_sp;
+      float hash(float n){ return fract(sin(n)*43758.5453123); }
+      float vnoise(vec2 x){ vec2 i=floor(x), f=fract(x);
+        float a=hash(i.x+i.y*57.), b=hash(i.x+1.+i.y*57.), c=hash(i.x+(i.y+1.)*57.), d=hash(i.x+1.+(i.y+1.)*57.);
+        vec2 u=f*f*(3.-2.*f); return mix(mix(a,b,u.x),mix(c,d,u.x),u.y); }
+      vec2 curl(vec2 p){ float e=0.15; float n1=vnoise(p+vec2(0.,e)), n2=vnoise(p-vec2(0.,e)), n3=vnoise(p+vec2(e,0.)), n4=vnoise(p-vec2(e,0.)); return vec2(n1-n2, -(n3-n4))/(2.*e); }
+      void main(){ float id=a_id; vec2 start=vec2(hash(id*0.123), hash(id*0.731))*2.-1.; start*=1.25;
+        float life=fract(u_time*0.045 + hash(id*1.7)); vec2 p=start;
+        for(int i=0;i<18;i++){ if(float(i)/18.0 > life) break; vec2 c=curl(p*1.4 + u_time*0.05); p+=c*0.035; }
+        v_sp=length(p-start);
+        gl_Position=vec4(p*vec2(u_res.y/u_res.x,1.0)*0.92, 0., 1.);
+        gl_PointSize=mix(1.5,3.6,1.0-life)*max(1.0,u_res.y/320.0); }`;
+    const fsrc=`precision mediump float; varying float v_sp; uniform vec3 u_c1,u_c2,u_c3;
+      void main(){ vec2 c=gl_PointCoord-0.5; float r=length(c); if(r>0.5) discard; float a=smoothstep(0.5,0.0,r);
+        vec3 col=mix(u_c3,u_c1,clamp(v_sp*2.2,0.,1.)); col=mix(col,u_c2,clamp(v_sp*0.7,0.,1.));
+        gl_FragColor=vec4(col, a*0.85); }`;
+    function sh(t,s){ const o=gl.createShader(t); gl.shaderSource(o,s); gl.compileShader(o); if(!gl.getShaderParameter(o,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; }
+    let prog;
+    try { prog=gl.createProgram(); gl.attachShader(prog,sh(gl.VERTEX_SHADER,vsrc)); gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,fsrc)); gl.linkProgram(prog);
+      if(!gl.getProgramParameter(prog,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog)); }
+    catch(e){ env.fail('shader error'); return {}; }
+    const N=Math.min(60000, Math.round(env.canvas.width*env.canvas.height/14));
+    const ids=new Float32Array(N); for(let i=0;i<N;i++) ids[i]=i+1;
+    const buf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,buf); gl.bufferData(gl.ARRAY_BUFFER,ids,gl.STATIC_DRAW);
+    const loc=gl.getAttribLocation(prog,'a_id');
+    const uTime=gl.getUniformLocation(prog,'u_time'), uRes=gl.getUniformLocation(prog,'u_res');
+    const uc1=gl.getUniformLocation(prog,'u_c1'), uc2=gl.getUniformLocation(prog,'u_c2'), uc3=gl.getUniformLocation(prog,'u_c3');
+    const t0=performance.now();
+    return {
+      draw(){ const p=env.pal(); gl.viewport(0,0,env.canvas.width,env.canvas.height);
+        const bg=v3(p.bg); gl.clearColor(bg[0],bg[1],bg[2],1); gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE); gl.disable(gl.DEPTH_TEST);
+        gl.useProgram(prog); gl.bindBuffer(gl.ARRAY_BUFFER,buf); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc,1,gl.FLOAT,false,0,0);
+        gl.uniform1f(uTime,(performance.now()-t0)/1000); gl.uniform2f(uRes,env.canvas.width,env.canvas.height);
+        gl.uniform3fv(uc1,v3(p.p1)); gl.uniform3fv(uc2,v3(p.p2)); gl.uniform3fv(uc3,v3(p.p3));
+        gl.drawArrays(gl.POINTS,0,N); },
+      teardown(){ gl.deleteBuffer(buf); gl.deleteProgram(prog); }
+    };
+  }
+});
+
+/* ---------- #3(B) Shader tunnel ---------- */
+FX.register({
+  id:'tunnel', name:'Infinite tunnel', cat:'gpu', rank:3, mode:'gl',
+  trick:'Convert each pixel to polar coordinates, then use 1/radius as depth. Constant pixel work, infinite perspective corridor. Mouse steers.',
+  src:"a = atan(y,x);  r = length(uv)\ndepth = 0.3/r + time\ncolour = stripes(a, depth)",
+  setup(env){
+    const gl=env.gl; const frag=`precision highp float; uniform vec2 u_res; uniform float u_time; uniform vec2 u_mouse; uniform vec3 u_bg,u_c1,u_c2,u_c3;
+      void main(){ vec2 uv=(gl_FragCoord.xy-0.5*u_res)/u_res.y; uv += (u_mouse-0.5)*0.5;
+        float a=atan(uv.y,uv.x); float r=length(uv); float u=a/3.14159265;
+        float depth=0.34/r + u_time*0.5;
+        float strip=0.5+0.5*sin(depth*10.0)*sin(u*16.0 + u_time*0.6);
+        vec3 col=mix(u_c1,u_c3,strip); col=mix(col,u_c2,0.5+0.5*sin(u*18.85 + u_time));
+        col*=smoothstep(0.0,0.55,r); col=mix(u_bg,col,clamp(r*1.7,0.,1.));
+        gl_FragColor=vec4(col,1.0); }`;
+    let q; try{ q=glQuad(gl,frag); }catch(e){ env.fail('shader error'); return {}; }
+    const t0=performance.now();
+    return {
+      draw(){ gl.viewport(0,0,env.canvas.width,env.canvas.height); q.use();
+        gl.uniform2f(q.u('u_res'),env.canvas.width,env.canvas.height);
+        gl.uniform1f(q.u('u_time'),(performance.now()-t0)/1000);
+        gl.uniform2f(q.u('u_mouse'), env.mouse.inside?env.mouse.nx:0.5, env.mouse.inside?(1.0-env.mouse.ny):0.5);
+        q.palette(env); q.draw(); },
+      teardown(){ if(q)q.free(); }
+    };
+  }
+});
+
+/* ---------- #4(B) Domain-warped ink ---------- */
+FX.register({
+  id:'ink', name:'Domain-warped ink', cat:'gpu', rank:4, mode:'gl',
+  trick:'Feed noise into noise into noise — fbm(p + fbm(p + fbm(p))). The field folds over itself into drifting marbled ink. Cursor pushes the flow.',
+  src:"q = fbm(p + t)\nr = fbm(p + 4q + mouse)\ncolour from fbm(p + 4r)",
+  setup(env){
+    const gl=env.gl; const frag='precision highp float; uniform vec2 u_res; uniform float u_time; uniform vec2 u_mouse; uniform vec3 u_bg,u_c1,u_c2,u_c3;'+NOISE_GLSL+`
+      void main(){ vec2 uv=gl_FragCoord.xy/u_res; uv.x*=u_res.x/u_res.y; vec2 p=uv*3.0; float t=u_time*0.13;
+        vec2 q=vec2(fbm(p+t), fbm(p+vec2(5.2,1.3)-t));
+        vec2 r=vec2(fbm(p+4.0*q+vec2(1.7,9.2)+u_mouse*1.5), fbm(p+4.0*q+vec2(8.3,2.8)-t));
+        float f=fbm(p+4.0*r);
+        vec3 col=mix(u_bg,u_c3,clamp(f*1.7,0.,1.));
+        col=mix(col,u_c1,clamp(length(q),0.,1.));
+        col=mix(col,u_c2,clamp(r.x*r.x*1.4,0.,1.));
+        gl_FragColor=vec4(col,1.0); }`;
+    let q; try{ q=glQuad(gl,frag); }catch(e){ env.fail('shader error'); return {}; }
+    const t0=performance.now();
+    return {
+      draw(){ gl.viewport(0,0,env.canvas.width,env.canvas.height); q.use();
+        gl.uniform2f(q.u('u_res'),env.canvas.width,env.canvas.height);
+        gl.uniform1f(q.u('u_time'),(performance.now()-t0)/1000);
+        gl.uniform2f(q.u('u_mouse'), env.mouse.inside?env.mouse.nx:0.3, env.mouse.inside?env.mouse.ny:0.3);
+        q.palette(env); q.draw(); },
+      teardown(){ if(q)q.free(); }
+    };
+  }
+});
+
+/* ---------- #5(B) Mesh gradient ---------- */
+FX.register({
+  id:'mesh', name:'Mesh gradient', cat:'gpu', rank:5, mode:'gl',
+  trick:'The premium "Stripe hero" look: blend several palette colours across the screen, warping the blend with slow large-scale noise.',
+  src:"col = mix(bg, c3, smooth(noise1))\ncol = mix(col, c1, smooth(noise2))\ncol = mix(col, c2, smooth(fbm3))",
+  setup(env){
+    const gl=env.gl; const frag='precision highp float; uniform vec2 u_res; uniform float u_time; uniform vec3 u_bg,u_c1,u_c2,u_c3;'+NOISE_GLSL+`
+      void main(){ vec2 uv=gl_FragCoord.xy/u_res; vec2 p=uv*1.6; float t=u_time*0.08;
+        float n1=noise(p+vec2(t,0.)); float n2=noise(p*1.3+vec2(0.,t)+10.0); float n3=fbm(p*0.9 - t*0.5 + 4.0);
+        vec3 col=mix(u_bg,u_c3,smoothstep(0.15,0.9,n1));
+        col=mix(col,u_c1,smoothstep(0.3,0.85,n2));
+        col=mix(col,u_c2,smoothstep(0.5,0.95,n3)*0.85);
+        gl_FragColor=vec4(col,1.0); }`;
+    let q; try{ q=glQuad(gl,frag); }catch(e){ env.fail('shader error'); return {}; }
+    const t0=performance.now();
+    return {
+      draw(){ gl.viewport(0,0,env.canvas.width,env.canvas.height); q.use();
+        gl.uniform2f(q.u('u_res'),env.canvas.width,env.canvas.height);
+        gl.uniform1f(q.u('u_time'),(performance.now()-t0)/1000);
+        q.palette(env); q.draw(); },
+      teardown(){ if(q)q.free(); }
+    };
+  }
+});
+
+/* ---------- #6(B) Three.js point-cloud morph ---------- */
+FX.register({
+  id:'morph', name:'Point-cloud morph', cat:'gpu', rank:6, mode:'raw', lib:'three.js',
+  trick:'A cloud of points lerps between two 3D shapes — sphere and torus knot — every vertex blended on the GPU. Drag to spin it.',
+  src:"position = mix(shapeA[i], shapeB[i], progress)\n// progress eases 0..1..0; additive points",
+  setup(env){
+    const canvas=env.canvas; let alive=true; let R=null, scene, cam, pts, geo, mat, posArr, A, B, N;
+    loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js').then(()=>{
+      if(!alive) return; const THREE=window.THREE; if(!THREE){ env.fail('three.js unavailable'); return; }
+      try {
+        R=new THREE.WebGLRenderer({canvas, antialias:true, alpha:false});
+        R.setPixelRatio(env.dpr); R.setSize(env.w, env.h, false);
+        const p=env.pal(); R.setClearColor(new THREE.Color(p.bg),1);
+        scene=new THREE.Scene(); cam=new THREE.PerspectiveCamera(55, env.w/env.h, 0.1, 100); cam.position.z=4.2;
+        N=2600; A=new Float32Array(N*3); B=new Float32Array(N*3); posArr=new Float32Array(N*3);
+        for(let i=0;i<N;i++){ const t=i/N;
+          const y=1-t*2, rad=Math.sqrt(1-y*y), th=i*2.399963;
+          A[i*3]=Math.cos(th)*rad*1.3; A[i*3+1]=y*1.3; A[i*3+2]=Math.sin(th)*rad*1.3;
+          const u=t*Math.PI*2*3, q=2, pp=3, r2=Math.cos(q*u)+2;
+          B[i*3]=Math.sin(pp*u)*r2*0.55; B[i*3+1]=Math.cos(q*u)*r2*0.55; B[i*3+2]=Math.sin(u*pp+0.5)*r2*0.55;
+          posArr[i*3]=A[i*3]; posArr[i*3+1]=A[i*3+1]; posArr[i*3+2]=A[i*3+2]; }
+        geo=new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(posArr,3));
+        mat=new THREE.PointsMaterial({ size:0.045, color:new THREE.Color(p.p1), transparent:true, opacity:0.9, blending:THREE.AdditiveBlending, depthWrite:false });
+        pts=new THREE.Points(geo,mat); scene.add(pts);
+      } catch(e){ env.fail('three.js init failed'); R=null; }
+    }).catch(()=>{ if(alive) env.fail('three.js unavailable offline'); });
+    const t0=performance.now();
+    return {
+      draw(){ if(!R) return; const t=(performance.now()-t0)/1000; const k=0.5+0.5*Math.sin(t*0.6);
+        for(let i=0;i<N*3;i++) posArr[i]=A[i]+(B[i]-A[i])*k;
+        geo.attributes.position.needsUpdate=true;
+        const m=env.mouse; pts.rotation.y=t*0.25+(m.inside?(m.nx-0.5)*3:0); pts.rotation.x=(m.inside?(m.ny-0.5)*2:Math.sin(t*0.2)*0.3);
+        R.render(scene,cam); },
+      teardown(){ alive=false; if(geo)geo.dispose(); if(mat)mat.dispose(); if(R){ R.dispose(); } R=null; }
+    };
+  }
+});
+
+/* ---------- #7(B) anime.js stagger grid ---------- */
+FX.register({
+  id:'anime', name:'Stagger grid', cat:'gpu', rank:7, mode:'2d', lib:'anime.js',
+  trick:"A grid of dots pulsing outward from the centre, choreographed by anime.js's grid-aware stagger. One line of timing, a whole ripple.",
+  src:"anime({ targets: cells, scale:[0,1],\n  delay: stagger(70, {grid:[c,r], from:'center'}),\n  loop:true, direction:'alternate' })",
+  setup(env){
+    const {ctx,w,h}=env; const gap=Math.max(26, Math.round(Math.min(w,h)/9));
+    const cols=Math.max(3,Math.round(w/gap)), rows=Math.max(3,Math.round(h/gap));
+    const cells=[]; for(let i=0;i<cols*rows;i++) cells.push({scale:0});
+    let anim=null, useAnime=false;
+    loadScript('https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js').then(()=>{
+      if(!window.anime) return; useAnime=true;
+      anim=window.anime({ targets:cells, scale:[0,1], delay:window.anime.stagger(70,{grid:[cols,rows], from:'center'}),
+        direction:'alternate', loop:true, easing:'easeInOutSine', duration:1100 });
+    }).catch(()=>{ /* fallback below keeps it alive */ });
+    let t=0;
+    return {
+      draw(){ t+=0.04; ctx.fillStyle=env.pal().bg; ctx.fillRect(0,0,w,h);
+        const ox=(w-(cols-1)*gap)/2, oy=(h-(rows-1)*gap)/2; const cx=(cols-1)/2, cy=(rows-1)/2;
+        for(let gy=0;gy<rows;gy++)for(let gx=0;gx<cols;gx++){ const idx=gy*cols+gx;
+          let s; if(useAnime){ s=cells[idx].scale; } else { const d=Math.hypot(gx-cx,gy-cy); s=0.5+0.5*Math.sin(t-d*0.6); }
+          const r=Math.max(0, s)*gap*0.34; if(r<0.3) continue;
+          ctx.beginPath(); ctx.arc(ox+gx*gap, oy+gy*gap, r, 0, U.TAU);
+          ctx.fillStyle=(gx+gy)%2? env.pal().p1 : env.pal().p3; ctx.globalAlpha=0.55+0.45*s; ctx.fill(); }
+        ctx.globalAlpha=1; },
+      teardown(){ if(anim){ anim.pause(); if(window.anime) window.anime.remove(cells); } }
+    };
+  }
+});
+
+/* ============================================================
+   HERO — a full-bleed flow field behind the title
+   ============================================================ */
+(function hero(){
+  const cv=document.getElementById('hero-canvas'); if(!cv) return; const ctx=cv.getContext('2d');
+  let w,h,dpr,ps=[],t=0,raf=null;
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const mouse={x:0,y:0,inside:false};
+  function P(){ return FX.pal(); }
+  function size(){ const r=cv.getBoundingClientRect(); dpr=Math.min(window.devicePixelRatio||1,1.75);
+    w=Math.max(2,Math.round(r.width)); h=Math.max(2,Math.round(r.height)); cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0); const N=Math.round(U.clamp(w*h/1100,260,1400)); ps=[];
+    for(let i=0;i<N;i++) ps.push({x:Math.random()*w,y:Math.random()*h,life:Math.random()});
+    ctx.fillStyle=P().bg; ctx.fillRect(0,0,w,h); }
+  size(); window.addEventListener('resize', ()=>{ clearTimeout(window.__hrt); window.__hrt=setTimeout(size,200); });
+  cv.addEventListener('mousemove', e=>{ const r=cv.getBoundingClientRect(); mouse.x=e.clientX-r.left; mouse.y=e.clientY-r.top; mouse.inside=true; });
+  cv.addEventListener('mouseleave', ()=>{ mouse.inside=false; });
+  function frame(){ raf=requestAnimationFrame(frame);
+    const p=P(); const cols=[p.p1,p.p2,p.p3];
+    ctx.fillStyle=U.rgba(p.bg,0.06); ctx.fillRect(0,0,w,h);
+    for(let i=0;i<ps.length;i++){ const pt=ps[i];
+      const a=U.noise(pt.x*0.0035+t*0.0008, pt.y*0.0035+50)*Math.PI*6;
+      const sp=1.1+U.noise(pt.x*0.003,pt.y*0.003+9)*1.5;
+      pt.x+=Math.cos(a)*sp; pt.y+=Math.sin(a)*sp;
+      if(mouse.inside){ const dx=pt.x-mouse.x,dy=pt.y-mouse.y,d=Math.hypot(dx,dy); if(d<140&&d>.01){ const f=(1-d/140)*3.5; pt.x+=-dy/d*f; pt.y+=dx/d*f; } }
+      pt.life-=0.0016; if(pt.life<=0||pt.x<0||pt.x>w||pt.y<0||pt.y>h){ pt.x=Math.random()*w; pt.y=Math.random()*h; pt.life=1; }
+      ctx.beginPath(); ctx.arc(pt.x,pt.y,1.1,0,U.TAU); ctx.fillStyle=cols[i%3]; ctx.globalAlpha=pt.life*0.5; ctx.fill();
+    }
+    ctx.globalAlpha=1; t++;
+  }
+  if(reduce){ for(let k=0;k<140;k++) { /* settle a static field */ } ctx.fillStyle=P().bg; ctx.fillRect(0,0,w,h);
+    for(let i=0;i<ps.length;i++){ const pt=ps[i]; ctx.beginPath(); ctx.arc(pt.x,pt.y,1.1,0,U.TAU); ctx.fillStyle=[P().p1,P().p2,P().p3][i%3]; ctx.globalAlpha=0.5; ctx.fill(); } ctx.globalAlpha=1; }
+  else frame();
+})();
+
+FX.boot();
+</script>
+</body>
+</html>
