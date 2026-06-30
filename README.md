@@ -1,5 +1,5 @@
 <a href="https://jmoraispk.github.io/odysseus-fx/">
-  <img src="assets/banner.svg" alt="Odysseus FX — 25 live canvas & shader effects" width="100%">
+  <img src="banner.svg" alt="Odysseus FX — 25 live canvas & shader effects" width="100%">
 </a>
 
 <p align="center">
