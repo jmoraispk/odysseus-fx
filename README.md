@@ -1,109 +1,127 @@
-# Odysseus FX
+<a href="https://jmoraispk.github.io/odysseus-fx/">
+  <img src="assets/banner.svg" alt="Odysseus FX — 25 live canvas & shader effects" width="100%">
+</a>
 
-A single self-contained HTML page with **25 live, interactive visual effects** — particle flow fields, reaction–diffusion, metaballs, boids, fluid-ish shaders, raymarched blobs and more. No build step, no bundler, (almost) no dependencies. Just open the file.
+<p align="center">
+  <a href="https://jmoraispk.github.io/odysseus-fx/"><img src="https://img.shields.io/badge/▶_live_demo-odysseus--fx-9cdef2?style=for-the-badge&labelColor=0e1116"></a>
+  <img src="https://img.shields.io/badge/build-none-5fb6cc?style=for-the-badge&labelColor=0e1116">
+  <img src="https://img.shields.io/badge/deps-(almost)_zero-5fb6cc?style=for-the-badge&labelColor=0e1116">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-e06c75?style=for-the-badge&labelColor=0e1116"></a>
+</p>
 
-> The 40-line magic show. Every panel is a running effect — not a screenshot. Hover, drag, and poke them.
+<h1 align="center">Odysseus FX</h1>
 
-**Live demo:** `https://<your-username>.github.io/odysseus-fx/` *(after you enable Pages — see below)*
+<p align="center">
+  <b>25 live, interactive visual effects in a single HTML file.</b><br>
+  Flow fields, reaction–diffusion, metaballs, boids, raymarched shaders — all running, none of them screenshots.
+</p>
+
+<p align="center">
+  <a href="https://jmoraispk.github.io/odysseus-fx/"><b>→ Open the gallery ←</b></a>
+</p>
+
+---
+
+## See it move
+
+The banner above is an animated SVG, so it plays right here in the README. But that's only a taste — GitHub strips JavaScript, so the *real* effects (live `<canvas>` and WebGL) can only run in a browser:
+
+### **[jmoraispk.github.io/odysseus-fx](https://jmoraispk.github.io/odysseus-fx/)**
+
+Hover, drag, and poke everything. Orbit the raymarcher, paint into the falling sand and Game of Life, click to drop ripples and launch fireworks, drag to steer the Julia constant. Flip the theme (top-right) and watch all 25 effects recolor at once.
 
 ---
 
 ## What's inside
 
-Everything lives in one file: [`index.html`](index.html). One `<canvas>` per tile, a shared animation loop, a theme system, and the math.
+One file — [`index.html`](index.html) — holds a tiny framework and 25 self-registering effects. Each tile shows its rank, a one-line "the trick" explanation, and a *view the key idea in code* expander.
 
-### Category A — vanilla (18, no dependencies)
-Pure Canvas 2D + plain JavaScript. Ranked by trick-to-code ratio.
+### Category A — vanilla · no dependencies (18)
+Pure Canvas 2D and plain JavaScript. Ranked by how good the trick-to-code ratio is.
 
-1. Flow field · 2. Reaction–diffusion (Gray–Scott) · 3. Metaballs · 4. Boids · 5. Falling sand · 6. Julia set · 7. Plasma · 8. Tixy field · 9. Digital rain · 10. Starfield warp · 11. Conway's Life · 12. Water ripple · 13. Fireworks · 14. Spectrum bars (Web Audio, optional mic) · 15. Error-diffusion dither · 16. Harmonograph · 17. Constellation · 18. Sine dot grid
+| # | Effect | The trick |
+|---|--------|-----------|
+| 1 | Flow field | Particles read an angle from a noise field; trails are a faint fill, not a clear |
+| 2 | Reaction–diffusion | Two chemicals diffuse and react via a 5-point Laplacian (Gray–Scott) |
+| 3 | Metaballs | Sum r²/distance²; threshold the field into fused liquid metal |
+| 4 | Boids | Separate, align, cohere — a flock emerges with no leader |
+| 5 | Falling sand | Each cell falls down, else slides diagonally; water spreads sideways |
+| 6 | Julia set | Iterate z ← z² + c per pixel; move c on a circle and it breathes |
+| 7 | Plasma | Sum a few sines of x, y, x+y, radius → shifting palette |
+| 8 | Tixy field | A 16×16 dot grid driven by one tiny formula f(t,i,x,y) |
+| 9 | Digital rain | One falling glyph per column, brighter at the head |
+| 10 | Starfield warp | Shrink each star's z and project with perspective |
+| 11 | Conway's Life | Survive on 2–3, born on 3 — gliders from one rule |
+| 12 | Water ripple | Height field: neighbour-average minus old, then damp; shade by slope |
+| 13 | Fireworks | Particle system: emit, gravity, fade; additive blend = glow |
+| 14 | Spectrum bars | AnalyserNode frequency bins → bars (optional mic) |
+| 15 | Dither | Floyd–Steinberg: snap to palette, push the error to neighbours |
+| 16 | Harmonograph | Two damped perpendicular sinusoids trace a pen |
+| 17 | Constellation | Dots joined by lines that fade with distance; the cursor is a node |
+| 18 | Sine dot grid | Dot radius = sine of distance to a moving centre |
 
 ### Category B — GPU & libraries (7)
-Raw WebGL shaders, plus two tiles that pull a library from a CDN (marked `lib`).
+Raw WebGL shaders, plus two tiles that pull a library from a CDN (marked **lib**).
 
-1. Raymarched blobs *(WebGL)* · 2. Curl-noise particles *(WebGL)* · 3. Infinite tunnel *(WebGL)* · 4. Domain-warped ink *(WebGL)* · 5. Mesh gradient *(WebGL)* · 6. Point-cloud morph *(three.js)* · 7. Stagger grid *(anime.js)*
-
----
-
-## Features
-
-- **Interactive.** Drag the raymarcher to orbit, paint into the sand and Game of Life, click to drop ripples and launch fireworks, move the cursor to stir the flow field or steer the Julia constant.
-- **Theme switcher** in the top bar — Odysseus (default), Void, Abyss, Ember, and a Paper light mode. Every effect re-reads the palette and recolors instantly, so you can see each one on different backgrounds.
-- **"View the trick"** — each tile has an expander showing the key idea in code.
-- **Built to behave.** Only on-screen tiles animate (IntersectionObserver), there's a global pause, `prefers-reduced-motion` is respected (starts paused with an opt-in), and an FPS readout sits in the footer.
-- **Graceful degradation.** The two `lib` tiles fall back to a small note if they can't reach the CDN; WebGL tiles do the same where WebGL is unavailable. CPU-heavy per-pixel effects render at reduced internal resolution and upscale.
+| # | Effect | The trick |
+|---|--------|-----------|
+| 1 | Raymarched blobs | One fragment shader marches a ray to a 3D distance field; no geometry |
+| 2 | Curl-noise particles | Tens of thousands of points integrate curl noise in the vertex shader |
+| 3 | Infinite tunnel | Polar coords + 1/radius as depth = endless corridor |
+| 4 | Domain-warped ink | fbm(p + fbm(p + fbm(p))) folds noise into drifting marble |
+| 5 | Mesh gradient | The "Stripe hero" look: palette blended through slow noise |
+| 6 | Point-cloud morph | A cloud lerps between sphere and torus knot — **lib: three.js** |
+| 7 | Stagger grid | Dots pulse from the centre via grid-aware stagger — **lib: anime.js** |
 
 ---
 
 ## Run it locally
 
-It's a static file — just open `index.html` in a browser. Or serve it (nicer for the Web Audio mic permission and CDN tiles):
+It's a static file — just open `index.html`. Or serve it (nicer for the audio-mic permission and the CDN tiles):
 
 ```bash
 python3 -m http.server 8000
-# then visit http://localhost:8000
+# → http://localhost:8000
 ```
 
-## Deploy to GitHub Pages
-
-**With the GitHub CLI (fastest):**
+## Deploy your own copy
 
 ```bash
+# with the GitHub CLI, from the project folder:
 gh repo create odysseus-fx --public --source=. --push
 ```
 
-Then turn on Pages: **Settings → Pages → Build and deployment → Source: "Deploy from a branch" → Branch: `main` / `/ (root)` → Save.**
-
-**With plain git** (after creating an empty repo at <https://github.com/new>):
-
-```bash
-git remote add origin https://github.com/<your-username>/odysseus-fx.git
-git branch -M main
-git push -u origin main
-```
-
-Your site appears at `https://<your-username>.github.io/odysseus-fx/` within a minute or two. The included `.nojekyll` file tells Pages to serve everything as-is.
+Then: **Settings → Pages → Source: _Deploy from a branch_ → `main` / `/ (root)`**. Live at `https://<you>.github.io/odysseus-fx/` in a minute or two. The `.nojekyll` file keeps Pages from touching anything.
 
 ---
 
-## How it's organized
+## How it's built
 
-```
-odysseus-fx/
-├── index.html     # the entire gallery — framework + 25 effects
-├── .nojekyll      # serve static files as-is on GitHub Pages
-├── .gitignore
-├── LICENSE
-└── README.md
-```
-
-Inside `index.html`, effects self-register with a small framework:
+No bundler, no framework. Effects self-register with a small loop:
 
 ```js
 FX.register({
   id, name, cat: 'vanilla' | 'gpu', rank, trick, src,
   mode: '2d' | 'gl' | 'raw',
-  setup(env) { /* ... */ return { draw(t), teardown() }; }
+  setup(env) { /* build state */ return { draw(t), teardown() }; }
 });
 ```
 
-`env` hands each effect its canvas/context, size, a live `pal()` palette getter (so theme switches recolor it), mouse state, and a place to mount controls. Adding a 26th tile is one more `FX.register({...})`.
+`env` hands each effect its canvas/context, size, mouse state, a place to mount controls, and a live `pal()` palette getter — that last one is why switching themes recolors everything instantly. Only tiles on screen animate (IntersectionObserver), `prefers-reduced-motion` is respected, and library tiles degrade to a small note if a CDN is unreachable. Adding a 26th effect is one more `FX.register({...})`.
+
+<details>
+<summary><b>Wait — how is there animation in a GitHub README?</b></summary>
+
+GitHub strips `<script>`, inline JS, and `<iframe>`, so a live canvas can't run here. But CSS animations written **inside an `.svg` file** survive, and that SVG renders as an image — so the banner genuinely animates. (Animated GIF/WebP work too, but they're heavier.) The actual effects need real JavaScript, which is why they live on the [Pages site](https://jmoraispk.github.io/odysseus-fx/).
+</details>
 
 ---
 
 ## Credits
 
-The techniques are classics from the creative-coding world; this is an original from-scratch implementation of each. Worth a look:
-
-- **Daniel Shiffman / The Coding Train** — flow fields, boids, reaction–diffusion, fractals
-- **Inigo Quilez** — raymarching, SDFs, domain warping, noise (iquilezles.org)
-- **Karl Sims** — the canonical reaction–diffusion tutorial
-- **Craig Reynolds** — *Boids* (1986/87), the original flocking model
-- **Martin Kleppe** — [tixy.land](https://tixy.land), the 16×16 one-formula dot field
-- **Pavel Dobryakov** — WebGL fluid simulation (inspiration for the shader tiles)
-- Libraries: [three.js](https://threejs.org) · [anime.js](https://animejs.com)
-
-Fonts: Space Grotesk + JetBrains Mono (Google Fonts).
+Classic creative-coding techniques, reimplemented from scratch. Worth a look:
+[Daniel Shiffman / The Coding Train](https://thecodingtrain.com) · [Inigo Quilez](https://iquilezles.org) (raymarching, SDFs, domain warping) · [Karl Sims](https://karlsims.com/rd.html) (reaction–diffusion) · Craig Reynolds (*Boids*, 1986) · [Martin Kleppe / tixy.land](https://tixy.land) · Pavel Dobryakov (WebGL fluid) · [three.js](https://threejs.org) · [anime.js](https://animejs.com).
 
 ## License
 
-MIT — see [LICENSE](LICENSE). The code here is yours to do whatever with; the linked libraries keep their own licenses.
+[MIT](LICENSE) — the code here is yours to remix; linked libraries keep their own licenses.
